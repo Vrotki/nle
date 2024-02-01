@@ -12,6 +12,7 @@ import weakref
 import gym
 import numpy as np
 
+from ..agent.agent_util import flavor
 from nle import nethack
 
 logger = logging.getLogger(__name__)
@@ -303,7 +304,7 @@ class NLE(gym.Env):
         self.nethack = nethack.Nethack(
             observation_keys=self._observation_keys,
             options=options,
-            playername="Agent-" + self.character,
+            playername=flavor.generate_character_name(), #self.character,#"Agent-" + self.character,
             ttyrec=ttyrec,
             wizard=wizard,
             spawn_monsters=spawn_monsters,
