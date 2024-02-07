@@ -304,7 +304,7 @@ class NLE(gym.Env):
         self.nethack = nethack.Nethack(
             observation_keys=self._observation_keys,
             options=options,
-            playername=flavor.generate_character_name(), #self.character,#"Agent-" + self.character,
+            playername=flavor.generate_character_name(),
             ttyrec=ttyrec,
             wizard=wizard,
             spawn_monsters=spawn_monsters,
