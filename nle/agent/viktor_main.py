@@ -13,6 +13,7 @@ from nle import nethack  # noqa: E402
 from nle.agent import vtrace  # noqa: E402
 from nle.agent import viktor_agent
 from nle.env import NLE
+from nle_language_wrapper import NLELanguageWrapper
 
 # yapf: disable
 parser = argparse.ArgumentParser(description="Viktor Agent")
@@ -29,7 +30,7 @@ def print_help(flags):
     env.print_action_meanings()
 
 def test(flags):
-    env: NLE = gym.make("NetHackScore-v0")
+    env: NLE = NLELanguageWrapper(gym.make("NetHackScore-v0"))
     
     env.reset()  # each reset generates a new dungeon
     current_agent = viktor_agent.viktor_agent(env)

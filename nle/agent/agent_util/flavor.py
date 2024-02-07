@@ -8,6 +8,7 @@ def generate_character_name():
         'Sydney',
         'Matthew',
         'Joel',
+        'Logan',
         'Mitchell',
         'Manganese',
         'Matthias',
