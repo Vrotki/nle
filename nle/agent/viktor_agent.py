@@ -1,6 +1,7 @@
 import random
 from typing import Dict, List
 from nle.env import NLE
+from nle.agent.agent_util.nle_map import nle_map
 
 int_stats: List[str] = [
     'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma', 'depth', 'gold', 'ac', 'time', 'monster_level', 'dungeon_number','level_number', 'score'
@@ -8,12 +9,14 @@ int_stats: List[str] = [
 scale_stats: List[str] = ['strength', 'hp', 'energy', 'xp']
 str_stats = ['position', 'hunger', 'encumbrance', 'alignment', 'condition']
 
-
 class viktor_agent:
     def __init__(self, env: NLE):
+        self.x: int = 0
+        self.y: int = 0
         self.env: NLE = env
         self.last_observation: Dict = {}
         self.surroundings: List[str] = []
+        self.nle_map: nle_map = nle_map(self)
         self.stats: Dict = {}
         self.inventory: List[str] = []
         self.character_class: str = None
@@ -32,12 +35,13 @@ class viktor_agent:
     def act(self):
         obsv, reward, done, info = self.env.step("wait")
         self.surroundings = obsv["text_glyphs"].split("\n") # Description of surroundings
+        self.nle_map.update_surroundings(self.surroundings)
         text_message: str = obsv["text_message"] # Seems to be empty
         self.update_stats(obsv["text_blstats"].split("\n")) # Description of stats, statuses, and progress
         self.inventory = obsv["text_inventory"].split("\n") # Description of each inventory item
         self.character_class = obsv["text_cursor"].split(" ")[-1] # Description of character class
-        print(self.surroundings)
-        print(self.stats)
+        print(self.nle_map)
+
 '''
 observation_keys=(
     "glyphs",
