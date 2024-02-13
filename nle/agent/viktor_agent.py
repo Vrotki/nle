@@ -21,8 +21,8 @@ class viktor_agent:
         self.inventory: List[str] = []
         self.character_class: str = None
         
-    def update_stats(self, blstats):
-        for index, current_value in enumerate(blstats):
+    def update_stats(self, blstats: List[str]):
+        for current_value in blstats:
             split_stat = current_value.split(": ")
             current_stat_name = split_stat[0].lower().replace(" ", "_")
             if current_stat_name in int_stats:

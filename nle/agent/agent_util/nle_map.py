@@ -1,23 +1,23 @@
 from typing import List, Tuple
 
 class cell():
-    def __init__(self, coordinates):
-        self.x, self.y = coordinates
+    def __init__(self, coordinates: Tuple[int, int]) -> None:
+        self.x: int = coordinates[0]
+        self.y: int = coordinates[1]
         self.glyph: str = "."
-        return
     
-    def __str__(self):
+    def __str__(self) -> str:
         return(self.glyph)
 
 class nle_map():
-    def __init__(self, agent):
+    def __init__(self, agent) -> None:
         self.agent = agent
         self.grid: List[List[cell]] = [[cell((0, 0))]]
         self.agent_coordinates: Tuple[int, int] = ((self.agent.x, self.agent.y))
         self.origin_coordinates = self.agent_coordinates
         return
     
-    def create_cell(self, coordinates):
+    def create_cell(self, coordinates: Tuple[int, int]) -> None:
         '''
         Grid is initialized with an initial origin cell, like [[.]]
         Given grid [[.]], to add cell at coordinate (-1, 1) based on an observation:
@@ -26,7 +26,7 @@ class nle_map():
         '''
         return
 
-    def get_cell(self, coordinates):
+    def get_cell(self, coordinates: Tuple[int, int]) -> cell:
         '''
         Room example:
             !--
@@ -52,13 +52,16 @@ class nle_map():
             To gain this behavior, get_cell((x, y)) should return self.grid[self.origin_y - y][x - self.origin_x]
                 get_cell((1, 0)) with self.origin = (-1, 1) returns self.grid[1 - 0][1 - (-1)] = self.grid[1][2] - intended behavior
         '''
-        return
+        try:
+            return(self.grid[self.origin_coordinates[1] - coordinates[1]][coordinates[0] - self.origin_coordinates[0]])
+        except:
+            return(None)
 
-    def update_surroundings(self, text_glyphs: List[str]):
+    def update_surroundings(self, text_glyphs: List[str]) -> None:
         for text_glyph in text_glyphs:
             return
     
-    def __str__(self):
+    def __str__(self) -> str:
         return_str = ""
         for row in self.grid:
             return_str += '['
