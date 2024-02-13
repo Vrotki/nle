@@ -13,18 +13,43 @@ class nle_map():
     def __init__(self, agent) -> None:
         self.agent = agent
         self.grid: List[List[cell]] = [[cell((0, 0))]]
+        self.grid_width: int = 1
+        self.grid_height: int = 1
         self.agent_coordinates: Tuple[int, int] = ((self.agent.x, self.agent.y))
         self.origin_coordinates = self.agent_coordinates
-        return
     
     def create_cell(self, coordinates: Tuple[int, int]) -> None:
         '''
         Grid is initialized with an initial origin cell, like [[.]]
         Given grid [[.]], to add cell at coordinate (-1, 1) based on an observation:
-
-            Identify that the grid is empty and create a and create <0, 0> cell, leading to grid []
+        
         '''
+        row, col = self.to_row_col(coordinates)
+        while coordinates[1] > self.origin_coordinates[1]: # If new cell would be above current origin, need to move origin up and add new rows
+            # Increase grid height by 1
+            return # Add rows to top of map until new cell is accomodated, moving origin 1 up each time
+        while coordinates[0] < self.origin_coordinates[0]: # If new cell would be to left of current origin, need to move origin left and add new columns
+            # Increase grid width by 1
+            return # Add columns to left of map until new cell is accomodated, moving origin 1 left each time
+
+        # Need to add rows to bottom if difference between coordinates[1] and origin[1] is greater than length of grid?
+        # While origin_y + grid_height <= new_y_coordinate, add rows to bottom
+        #   To add y coordinate -2 when origin is (0, 0) and grid height is 1,
+        #       origin_y + grid_height = 1, which is <= 2, so add a row to bototm
+        #       Origin is still (0, 0), but grid height is 2
+        #       origin_y + grid_height = 2, which is <= 2, so add a row to bottom
+        #       Origin is still (0, 0, but grid height is 3
+        #       origin_y + grid_height = 3, which is not <= 2, so done adding rows
+        while self.origin_coordinates[1] + self.grid_height <= coordinates[1]: # While distance from origin to bottom of grid shows that new cell doesn't have a row yet
+            # Increase grid height by 1
+            return # Add rows to bottom of map until new cell is accomodated
+        
+        # Continue process for adding new columns
+
         return
+
+    def to_row_col(self, coordinates: Tuple[int, int]) -> Tuple[int, int]:
+        return((self.origin_coordinates[1] - coordinates[1], coordinates[0] - self.origin_coordinates[0]))
 
     def get_cell(self, coordinates: Tuple[int, int]) -> cell:
         '''
@@ -52,8 +77,10 @@ class nle_map():
             To gain this behavior, get_cell((x, y)) should return self.grid[self.origin_y - y][x - self.origin_x]
                 get_cell((1, 0)) with self.origin = (-1, 1) returns self.grid[1 - 0][1 - (-1)] = self.grid[1][2] - intended behavior
         '''
+        row, col = self.to_row_col(coordinates)
         try:
-            return(self.grid[self.origin_coordinates[1] - coordinates[1]][coordinates[0] - self.origin_coordinates[0]])
+            return(self.grid[row][col])
+            #return(self.grid[self.origin_coordinates[1] - coordinates[1]][coordinates[0] - self.origin_coordinates[0]])
         except:
             return(None)
 
