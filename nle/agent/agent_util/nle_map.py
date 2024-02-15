@@ -58,7 +58,7 @@ class nle_map():
 
     def update_surroundings(self, text_glyphs: List[str]) -> None:
         for text_glyph in text_glyphs:
-            return
+            interpretation = self.agent.interpret(text_glyph)
     
     def __str__(self) -> str:
         return_str = ""
