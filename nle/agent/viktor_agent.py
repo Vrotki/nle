@@ -46,8 +46,8 @@ class viktor_agent:
 
     def interpret(self, text_glyph: str, verbose: bool = False) -> Dict:
         original_glyph = text_glyph
-        if verbose:
-            print('Interpreting observation: ' + text_glyph)
+        #if verbose:
+        print('Interpreting observation: ' + text_glyph)
         superfluous_words = [',', '.', 'and ']
         location_distances = {'far': 6, 'verynear': 2, 'near': 4, 'adjacent': 1, 'veryfar': 12}
         '''
@@ -105,7 +105,7 @@ class viktor_agent:
             print('Encoding ' + str(glyph_subject) + ' about ' + str(estimated_glyph_distance) + ' away at the coordinates ' + str(glyph_location) +'\n')
         return({
             'subject': glyph_subject,
-            'location': glyph_location,
+            'locations': glyph_location,
             'glyph': original_glyph
         })
 

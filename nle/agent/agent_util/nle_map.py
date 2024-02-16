@@ -1,13 +1,58 @@
 from typing import List, Tuple
 
+equivalence = {
+    'northeast room corner': 'horizontal wall',
+    'northwest room corner': 'horizontal wall',
+    'southwest room corner': 'horizontal wall',
+    'southeast room corner': 'horizontal wall',
+    'northeast corner': 'horizontal wall',
+    'northwest corner': 'horizontal wall',
+    'southwest corner': 'horizontal wall',
+    'southeast corner': 'horizontal wall',
+    'doorway': 'blank',
+    'dark area': 'blank'
+}
+
+icons = {
+    'horizontal wall': '-',
+    'vertical wall': '|',
+    'horizontal closed door': '+',
+    'vertical closed door': '+',
+    'horizontal open door': '|',
+    'vertical open door': '-',
+    'blank': '.',
+    'agent': '@',
+    'tame little dog': 'd',
+    'gold piece': '$',
+    'tame kitten': 'f',
+    'tame pony': 'u',
+    'kobold': 'k',
+    'fountain': '{'
+}
+
+passable = { #Assumed any object without an entry is passable - may update and log in runtime if discovered that move command failed due to impassable object
+    'horizontal wall': False,
+    'vertical wall': False,
+    'horizontal closed door': False,
+    'vertical closed door': False,
+}
+
 class cell():
     def __init__(self, coordinates: Tuple[int, int], glyph: str = ".") -> None:
         self.x: int = coordinates[0]
         self.y: int = coordinates[1]
         self.glyph: str = glyph
+        self.passable: bool = True
     
     def __str__(self) -> str:
         return(self.glyph)
+
+    def incorporate(self, glyph_subject: List[str]) -> None:
+        str_subject = ' '.join(glyph_subject)
+        if str_subject in equivalence: # Converts something like northeast room corner to horizontal wall due to identical appearance and functionality
+            str_subject = equivalence[str_subject]
+        self.glyph = icons.get(str_subject, '?')
+        self.passable = passable.get(str_subject, True)
 
 class nle_map():
     def __init__(self, agent) -> None:
@@ -17,6 +62,7 @@ class nle_map():
         self.grid_height: int = 1
         self.agent_coordinates: Tuple[int, int] = ((self.agent.x, self.agent.y))
         self.origin_coordinates = self.agent_coordinates
+        self.get_cell((self.agent.x, self.agent.y)).glyph = '@' # Automate this process when setting location
     
     def create_cell(self, coordinates: Tuple[int, int]) -> None:
         while coordinates[1] > self.origin_coordinates[1]: # If new cell would be above current origin, need to move origin up and add new rows
@@ -60,17 +106,20 @@ class nle_map():
         for text_glyph in text_glyphs:
             interpretation = self.agent.interpret(text_glyph)
             print(interpretation)
+            for location in interpretation['locations']:
+                self.create_cell(location)
+                self.get_cell(location).incorporate(interpretation['subject'])
     
     def __str__(self) -> str:
         return_str = ""
         for row in self.grid:
-            return_str += '['
+            #return_str += '['
             for column in row:
                 return_str += str(column)
-                if column != row[-1]:
-                    return_str += ' '
-            return_str += ']'
-            if row != self.grid[-1]:
-                return_str += ', '
+                #if column != row[-1]:
+                #    return_str += ' '
+            #return_str += ']'
+            #if row != self.grid[-1]:
+            #    return_str += ', '
             return_str += '\n'
         return(return_str)
