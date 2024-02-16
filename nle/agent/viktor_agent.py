@@ -1,4 +1,5 @@
 import random
+import math
 from typing import Dict, List
 from nle.env import NLE
 from nle.agent.agent_util.nle_map import nle_map
@@ -43,27 +44,32 @@ class viktor_agent:
         self.character_class = obsv["text_cursor"].split(" ")[-1] # Description of character class
         print(self.nle_map)
 
-    def interpret(self, text_glyph: str):
-        '''
-        Need to separate glyph subject words and glyph location words
-        Location words always appear last and include cardinal directions
-        '''
-        print('Interpreting: ' + text_glyph)
+    def interpret(self, text_glyph: str, verbose: bool = False) -> Dict:
+        original_glyph = text_glyph
+        if verbose:
+            print('Interpreting observation: ' + text_glyph)
         superfluous_words = [',', '.', 'and ']
-        location_distances = {'far': 7, 'very near': 2, 'near': 4, 'adjacent': 1, 'very far': 20}
+        location_distances = {'far': 6, 'verynear': 2, 'near': 4, 'adjacent': 1, 'veryfar': 12}
+        '''
+        Observed boundaries:
+            Adjacent: 1-1
+            Very near: 2-2
+            Near: 3-5
+            Far: 6-?
+            Very far: ?
+        '''
         cardinal_directions = ['north', 'west', 'south', 'east']
-        text_glyph = misc_util.remove_multiple_substrings(text_glyph, superfluous_words).split(' ')
+        text_glyph = misc_util.remove_multiple_substrings(text_glyph, superfluous_words).replace('very near', 'verynear').replace('very far', 'veryfar').split(' ')
 
         location_separated = False
         num_words = len(text_glyph)
         index = 0
         while index < num_words and not location_separated:
             current_word = text_glyph[index]
-            if current_word in location_distances: # Note - very near not being interpreted correctly, giving same distance as near
+            if current_word in location_distances:
                 glyph_subject = text_glyph[:index]
                 glyph_location = text_glyph[index:]
                 estimated_glyph_distance = location_distances[glyph_location.pop(0)]
-                print(estimated_glyph_distance)
                 # Should have a way to detect a previously found glyph of the same subject in the approximate location
                 for location_index, current_copy in enumerate(glyph_location):
                     for cardinal_direction in cardinal_directions:
@@ -71,10 +77,37 @@ class viktor_agent:
                     glyph_location[location_index] = glyph_location[location_index].split(' ')
                     glyph_location[location_index].pop(-1)
                     glyph_location[location_index] = misc_util.cardinal_directions_to_angle(glyph_location[location_index])
-                print(glyph_location)
-            index += 1
 
-        return('none')
+                    if verbose:
+                        print(glyph_location[location_index]) # Prints vector angle
+
+                    x_change = estimated_glyph_distance * math.cos(math.radians(glyph_location[location_index]))
+                    if round(x_change, 2) < 0:
+                        x_change = -1 * int(math.ceil(-1 * x_change))
+                    elif round(x_change, 2) > 0:
+                        x_change = int(math.ceil(x_change))
+                    else:
+                        x_change = int(round(x_change))
+
+                    y_change = estimated_glyph_distance * math.sin(math.radians(glyph_location[location_index]))
+                    if round(y_change, 2) < 0:
+                        y_change = -1 * int(math.ceil(-1 * y_change))
+                    elif round(y_change, 2) > 0:
+                        y_change = int(math.ceil(y_change))
+                    else:
+                        y_change = int(round(y_change))
+
+                    glyph_location[location_index] = (self.x + x_change, self.y + y_change)
+
+                location_separated = True
+            index += 1
+        if verbose:
+            print('Encoding ' + str(glyph_subject) + ' about ' + str(estimated_glyph_distance) + ' away at the coordinates ' + str(glyph_location) +'\n')
+        return({
+            'subject': glyph_subject,
+            'location': glyph_location,
+            'glyph': original_glyph
+        })
 
 '''
 observation_keys=(

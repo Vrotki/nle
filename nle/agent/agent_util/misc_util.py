@@ -9,12 +9,17 @@ def cardinal_directions_to_angle(cardinal_directions: List[str]) -> int:
     cardinal_direction_angles = {'east': 0, 'north': 90, 'west': 180, 'south': 270}
     total_angle = 0
     increment = 90
+    last_direction = None
+    for index in range(1, len(cardinal_directions) - 1): # Something like northnorthwest should be interpreted as north west north by swapping order
+        if cardinal_directions[index] == cardinal_directions[index-1]:
+            cardinal_directions[index] = cardinal_directions[index+1]
+            cardinal_directions[index+1] = cardinal_directions[index-1]
     for index, current_direction in enumerate(cardinal_directions):
         if index == 0:
             total_angle = cardinal_direction_angles[current_direction]
         else:
             min_index = 0
-            candidate_angles = [cardinal_direction_angles[current_direction], cardinal_direction_angles[current_direction] - 360, cardinal_direction_angles[current_direction] + 360]
+            candidate_angles = [cardinal_direction_angles[current_direction], cardinal_direction_angles[current_direction] + 360]
             for attempted_index, angle in enumerate(candidate_angles):
                 if abs(total_angle - candidate_angles[attempted_index]) < abs(total_angle - candidate_angles[min_index]):
                     min_index = attempted_index
