@@ -34,21 +34,33 @@ class viktor_agent:
             elif current_stat_name in str_stats:
                 self.stats[current_stat_name] = split_stat[-1]
 
-    def act(self):
-        obsv, reward, done, info = self.env.step("wait")
-        self.surroundings = obsv["text_glyphs"].split("\n") # Description of surroundings
+    def think(self):
+        return('east')
+
+    def act(self, specified_command = None):
+        if specified_command:
+            command = specified_command
+        else:
+            command = self.think() #"wait"
+        try:
+            obsv, reward, done, info = self.env.step(command)
+        except:
+            print(specified_command + ' is not a valid command.\n')
+            return
+        self.surroundings = obsv['text_glyphs'].split("\n") # Description of surroundings
+        self.nle_map.update_position(command)
         self.nle_map.update_surroundings(self.surroundings)
-        text_message: str = obsv["text_message"] # Seems to be empty
-        self.update_stats(obsv["text_blstats"].split("\n")) # Description of stats, statuses, and progress
-        self.inventory = obsv["text_inventory"].split("\n") # Description of each inventory item
-        self.character_class = obsv["text_cursor"].split(" ")[-1] # Description of character class
+        text_message: str = obsv['text_message'] # Seems to be empty
+        self.update_stats(obsv['text_blstats'].split('\n')) # Description of stats, statuses, and progress
+        self.inventory = obsv['text_inventory'].split('\n') # Description of each inventory item
+        self.character_class = obsv['text_cursor'].split(' ')[-1] # Description of character class
         print(self.nle_map)
 
     def interpret(self, text_glyph: str, verbose: bool = False) -> Dict:
         original_glyph = text_glyph
         #if verbose:
         print('Interpreting observation: ' + text_glyph)
-        superfluous_words = [',', '.', 'and ']
+        superfluous_words = [',', '.']
         location_distances = {'far': 6, 'verynear': 2, 'near': 4, 'adjacent': 1, 'veryfar': 12}
         '''
         Observed boundaries:
@@ -59,8 +71,10 @@ class viktor_agent:
             Very far: ?
         '''
         cardinal_directions = ['north', 'west', 'south', 'east']
+        text_glyph = text_glyph.replace(' and ', ' ')
         text_glyph = misc_util.remove_multiple_substrings(text_glyph, superfluous_words).replace('very near', 'verynear').replace('very far', 'veryfar').split(' ')
-
+        if verbose:
+            print(text_glyph)
         location_separated = False
         num_words = len(text_glyph)
         index = 0

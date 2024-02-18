@@ -46,14 +46,21 @@ def test(flags):
         repeats = 100
         delay = 0.05
 
+    new_command = ''
+    current_agent.act('wait')
     while(continue_run):
-        for i in range(repeats):
-            current_agent.act()
-            if delay:
-                time.sleep(delay)
-                env.render()
         env.render()
-        continue_run = input('Enter "quit" to terminate run: ') != 'quit'
+        new_command = input('Enter "quit" to terminate run: ')
+        continue_run = new_command != 'quit'
+        if continue_run:
+            for i in range(repeats):
+                if new_command not in ['', 'quit']:
+                    current_agent.act(specified_command=new_command)
+                else:
+                    current_agent.act()
+                if delay:
+                    time.sleep(delay)
+                    env.render()
     return
 
 def main(flags):

@@ -1,5 +1,16 @@
 from typing import List, Tuple
 
+movement_commands = {
+    'east': (1, 0),
+    'northeast': (1, 1),
+    'north': (0, 1),
+    'northwest': (-1, 1),
+    'west': (-1, 0),
+    'southwest': (-1, -1),
+    'south': (0, -1),
+    'southeast': (1, -1)
+}
+
 equivalence = {
     'northeast room corner': 'horizontal wall',
     'northwest room corner': 'horizontal wall',
@@ -27,7 +38,12 @@ icons = {
     'tame kitten': 'f',
     'tame pony': 'u',
     'kobold': 'k',
-    'fountain': '{'
+    'fountain': '{',
+    'grave': '|',
+    'bars': '#',
+    'bronze ring': '=',
+    'lichen': 'F',
+    'stairs up': '<'
 }
 
 passable = { #Assumed any object without an entry is passable - may update and log in runtime if discovered that move command failed due to impassable object
@@ -35,14 +51,16 @@ passable = { #Assumed any object without an entry is passable - may update and l
     'vertical wall': False,
     'horizontal closed door': False,
     'vertical closed door': False,
+    'bars': False
 }
 
 class cell():
-    def __init__(self, coordinates: Tuple[int, int], glyph: str = ".") -> None:
+    def __init__(self, coordinates: Tuple[int, int], glyph: str = " ") -> None:
         self.x: int = coordinates[0]
         self.y: int = coordinates[1]
         self.glyph: str = glyph
         self.passable: bool = True
+        self.just_observed: bool = False
     
     def __str__(self) -> str:
         return(self.glyph)
@@ -51,6 +69,7 @@ class cell():
         str_subject = ' '.join(glyph_subject)
         if str_subject in equivalence: # Converts something like northeast room corner to horizontal wall due to identical appearance and functionality
             str_subject = equivalence[str_subject]
+        self.feature = str_subject
         self.glyph = icons.get(str_subject, '?')
         self.passable = passable.get(str_subject, True)
 
@@ -102,13 +121,51 @@ class nle_map():
         except:
             return(None)
 
+    def update_position(self, command: str) -> None:
+        if command in movement_commands:
+            coordinate_changes = movement_commands[command]
+            self.get_cell(self.agent_coordinates).glyph = '.'
+            self.agent.x += coordinate_changes[0]
+            self.agent.y += coordinate_changes[1]
+            self.agent_coordinates = (self.agent.x, self.agent.y)
+            self.get_cell(self.agent_coordinates).glyph = '@'
+        print('Current location: ' + str(self.agent_coordinates))
+
     def update_surroundings(self, text_glyphs: List[str]) -> None:
+        for x in range(self.origin_coordinates[0], self.origin_coordinates[0] + self.grid_width):
+            for y in range(self.origin_coordinates[1], self.origin_coordinates[1] + self.grid_height):
+                self.get_cell((x, y)).just_observed = False
+
         for text_glyph in text_glyphs:
             interpretation = self.agent.interpret(text_glyph)
             print(interpretation)
-            for location in interpretation['locations']:
+            for location in interpretation['locations']: 
+                # Need to add feature tracking: if a feature's position has previously been seen in an area, don't add copies of it when it is seen again from
+                #   somewhere else
+                # Maybe store a feature's position uncertainty when it is incorporated - then, combine new observations and previous uncertain features in the area
+                #   into a new, refined position with lower uncertainty (the new position's possible range is the overlap of the areas of previous observations)
+                # Either store a partially resolved feature as a class object or series of cell attributes
+                #   Probably a class object to allow things like merging 2 observed features with a single function
+                #   Need an easy way to access the locations of all features of a type and see if they overlap with the uncertainty range of a new observation
                 self.create_cell(location)
+                current_cell = self.get_cell(location)
+                current_cell.incorporate(interpretation['subject'])
+                current_cell.just_observed = True
                 self.get_cell(location).incorporate(interpretation['subject'])
+        
+        guaranteed_visible_cells = [(1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1)]
+        while guaranteed_visible_cells:
+            relative_coordinates = guaranteed_visible_cells.pop(0)
+            current_cell = self.get_cell((relative_coordinates[0] + self.agent_coordinates[0], relative_coordinates[1] + self.agent_coordinates[1]))
+            if current_cell:
+                if not current_cell.just_observed:
+                    current_cell.incorporate(['blank'])
+                    current_cell.just_observed = True
+                if passable.get(current_cell.feature, True):
+                    if abs(relative_coordinates[0]) == 1 or abs(relative_coordinates[1]) == 1:
+                        new_coordinates = (relative_coordinates[0] * 2, relative_coordinates[1] * 2)
+                        if not new_coordinates in guaranteed_visible_cells:
+                            guaranteed_visible_cells.append(new_coordinates)
     
     def __str__(self) -> str:
         return_str = ""
