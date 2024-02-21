@@ -1,4 +1,5 @@
 from typing import List, Tuple
+from . import feature
 
 movement_commands = {
     'east': (1, 0),
@@ -9,49 +10,6 @@ movement_commands = {
     'southwest': (-1, -1),
     'south': (0, -1),
     'southeast': (1, -1)
-}
-
-equivalence = {
-    'northeast room corner': 'horizontal wall',
-    'northwest room corner': 'horizontal wall',
-    'southwest room corner': 'horizontal wall',
-    'southeast room corner': 'horizontal wall',
-    'northeast corner': 'horizontal wall',
-    'northwest corner': 'horizontal wall',
-    'southwest corner': 'horizontal wall',
-    'southeast corner': 'horizontal wall',
-    'doorway': 'blank',
-    'dark area': 'blank'
-}
-
-icons = {
-    'horizontal wall': '-',
-    'vertical wall': '|',
-    'horizontal closed door': '+',
-    'vertical closed door': '+',
-    'horizontal open door': '|',
-    'vertical open door': '-',
-    'blank': '.',
-    'agent': '@',
-    'tame little dog': 'd',
-    'gold piece': '$',
-    'tame kitten': 'f',
-    'tame pony': 'u',
-    'kobold': 'k',
-    'fountain': '{',
-    'grave': '|',
-    'bars': '#',
-    'bronze ring': '=',
-    'lichen': 'F',
-    'stairs up': '<'
-}
-
-passable = { #Assumed any object without an entry is passable - may update and log in runtime if discovered that move command failed due to impassable object
-    'horizontal wall': False,
-    'vertical wall': False,
-    'horizontal closed door': False,
-    'vertical closed door': False,
-    'bars': False
 }
 
 class cell():
@@ -67,11 +25,11 @@ class cell():
 
     def incorporate(self, glyph_subject: List[str]) -> None:
         str_subject = ' '.join(glyph_subject)
-        if str_subject in equivalence: # Converts something like northeast room corner to horizontal wall due to identical appearance and functionality
-            str_subject = equivalence[str_subject]
+        if str_subject in feature.equivalence: # Converts something like northeast room corner to horizontal wall due to identical appearance and functionality
+            str_subject = feature.equivalence[str_subject]
         self.feature = str_subject
-        self.glyph = icons.get(str_subject, '?')
-        self.passable = passable.get(str_subject, True)
+        self.glyph = feature.icons.get(str_subject, '?')
+        self.passable = feature.passable.get(str_subject, True)
 
 class nle_map():
     def __init__(self, agent) -> None:
@@ -121,8 +79,9 @@ class nle_map():
         except:
             return(None)
 
-    def update_position(self, command: str) -> None:
-        if command in movement_commands:
+    def update_position(self, command: str, text_message: str) -> None:
+        if command in movement_commands and self.agent.allows_move(text_message):
+                # Need to use It's solid stone to determine whether certain dark areas are passable
             coordinate_changes = movement_commands[command]
             self.get_cell(self.agent_coordinates).glyph = '.'
             self.agent.x += coordinate_changes[0]
@@ -132,27 +91,28 @@ class nle_map():
         print('Current location: ' + str(self.agent_coordinates))
 
     def update_surroundings(self, text_glyphs: List[str]) -> None:
+        feature.update_mobile_features(self) # Updates possible locations of any features that can move
+
         for x in range(self.origin_coordinates[0], self.origin_coordinates[0] + self.grid_width):
             for y in range(self.origin_coordinates[1], self.origin_coordinates[1] + self.grid_height):
                 self.get_cell((x, y)).just_observed = False
 
         for text_glyph in text_glyphs:
-            interpretation = self.agent.interpret(text_glyph)
-            print(interpretation)
-            for location in interpretation['locations']: 
-                # Need to add feature tracking: if a feature's position has previously been seen in an area, don't add copies of it when it is seen again from
-                #   somewhere else
-                # Maybe store a feature's position uncertainty when it is incorporated - then, combine new observations and previous uncertain features in the area
-                #   into a new, refined position with lower uncertainty (the new position's possible range is the overlap of the areas of previous observations)
-                # Either store a partially resolved feature as a class object or series of cell attributes
-                #   Probably a class object to allow things like merging 2 observed features with a single function
-                #   Need an easy way to access the locations of all features of a type and see if they overlap with the uncertainty range of a new observation
-                self.create_cell(location)
-                current_cell = self.get_cell(location)
-                current_cell.incorporate(interpretation['subject'])
-                current_cell.just_observed = True
-                self.get_cell(location).incorporate(interpretation['subject'])
-        
+            interpretation = self.agent.interpret(text_glyph, verbose=False)
+            for location_set in interpretation['locations']:
+                if type(location_set) == set: # Observations deemed to not be useful part-way through will not be fully converted to location sets
+                    for location in location_set:
+                        self.create_cell(location)
+                    overlapping_features = feature.find_overlap(interpretation['subject'], location_set)
+                    current_feature = None
+                    if len(overlapping_features) == 1:
+                        current_feature, intersection = overlapping_features[0]
+                        current_feature.set_location_set(intersection)
+                    elif len(overlapping_features) == 0:
+                        current_feature = feature.feature(self, interpretation['subject'], location_set)
+                    if current_feature and len(current_feature.location_set) == 1:
+                        self.get_cell(current_feature.predicted_location).just_observed = True
+        feature.print_features()
         guaranteed_visible_cells = [(1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1)]
         while guaranteed_visible_cells:
             relative_coordinates = guaranteed_visible_cells.pop(0)
@@ -161,7 +121,7 @@ class nle_map():
                 if not current_cell.just_observed:
                     current_cell.incorporate(['blank'])
                     current_cell.just_observed = True
-                if passable.get(current_cell.feature, True):
+                if feature.passable.get(current_cell.feature, True):
                     if abs(relative_coordinates[0]) == 1 or abs(relative_coordinates[1]) == 1:
                         new_coordinates = (relative_coordinates[0] * 2, relative_coordinates[1] * 2)
                         if not new_coordinates in guaranteed_visible_cells:
@@ -170,13 +130,7 @@ class nle_map():
     def __str__(self) -> str:
         return_str = ""
         for row in self.grid:
-            #return_str += '['
             for column in row:
                 return_str += str(column)
-                #if column != row[-1]:
-                #    return_str += ' '
-            #return_str += ']'
-            #if row != self.grid[-1]:
-            #    return_str += ', '
             return_str += '\n'
         return(return_str)
