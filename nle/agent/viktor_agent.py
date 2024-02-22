@@ -54,7 +54,6 @@ class viktor_agent:
         self.update_stats(obsv['text_blstats'].split('\n')) # Description of stats, statuses, and progress
         self.inventory = obsv['text_inventory'].split('\n') # Description of each inventory item
         self.character_class = obsv['text_cursor'].split(' ')[-1] # Description of character class
-        print(self.nle_map)
 
     def interpret(self, text_glyph: str, verbose: bool = False) -> Dict:
         original_glyph = text_glyph
@@ -117,6 +116,12 @@ class viktor_agent:
 
                 location_separated = True
             index += 1
+        if glyph_subject == ['dark', 'area']: # When walking through a tunnel, any adjacent dark areas are always walls, while non-adjacent dark areas are inconsistent
+            if min_glyph_distance == 1:
+                glyph_subject = ['stone', 'wall']
+            else:
+                glyph_subject = ['current'] # Don't use far dark observations directly, but they help determine which guaranteed visible cells to modify
+
         print('Encoding ' + str(glyph_subject) + ' about ' + str(min_glyph_distance) + ' away at the coordinates ' + str(glyph_location) +'\n')
         return({
             'subject': glyph_subject,
@@ -146,6 +151,10 @@ class viktor_agent:
         elif text_message.startswith('You hit '):
             return(False)
         elif text_message.startswith("You can't move"):
+            return(False)
+        elif text_message.startswith("You cannot pass"):
+            return(False)
+        elif text_message.startswith("You try to move the boulder, but in vain"):
             return(False)
         return(True)
 

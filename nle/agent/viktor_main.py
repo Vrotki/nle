@@ -50,6 +50,7 @@ def test(flags):
     current_agent.act('wait')
     while(continue_run):
         env.render()
+        print(current_agent.nle_map)
         new_command = input('Enter "quit" to terminate run: ')
         continue_run = new_command != 'quit'
         if continue_run:

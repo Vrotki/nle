@@ -17,19 +17,33 @@ class cell():
         self.x: int = coordinates[0]
         self.y: int = coordinates[1]
         self.glyph: str = glyph
+        self.feature: str = 'empty'
+        self.confirmed_glyph: str = None
         self.passable: bool = True
         self.just_observed: bool = False
     
     def __str__(self) -> str:
-        return(self.glyph)
+        if not self.confirmed_glyph:
+            return(self.glyph)
+        elif self.just_observed or self.glyph == '@':
+            return(self.glyph)
+        else:
+            return(self.confirmed_glyph)
 
-    def incorporate(self, glyph_subject: List[str]) -> None:
-        str_subject = ' '.join(glyph_subject)
-        if str_subject in feature.equivalence: # Converts something like northeast room corner to horizontal wall due to identical appearance and functionality
-            str_subject = feature.equivalence[str_subject]
-        self.feature = str_subject
-        self.glyph = feature.icons.get(str_subject, '?')
-        self.passable = feature.passable.get(str_subject, True)
+    def incorporate(self, glyph_subject: List[str], confirmed: bool = False) -> None:
+        if glyph_subject != ['current']:
+            str_subject = ' '.join(glyph_subject)
+            if str_subject in feature.equivalence: # Converts something like northeast room corner to horizontal wall due to identical appearance and functionality
+                str_subject = feature.equivalence[str_subject]
+
+            self.glyph = feature.icons.get(str_subject, '?')
+            self.feature = str_subject # A non-confirmed feature may be the best prediction of a mobile feature or one seen from afar
+
+            if confirmed and not feature.mobile.get(str_subject): # A feature is only logged as confirmed if unambiguously observed and immobile
+                self.confirmed_glyph = feature.icons.get(str_subject, '?') # A confirmed feature can only ever be replaced by another confirmed feature
+                self.confirmed_feature = str_subject
+
+            self.passable = feature.passable.get(str_subject, True)
 
 class nle_map():
     def __init__(self, agent) -> None:
@@ -99,34 +113,44 @@ class nle_map():
 
         for text_glyph in text_glyphs:
             interpretation = self.agent.interpret(text_glyph, verbose=False)
-            for location_set in interpretation['locations']:
-                if type(location_set) == set: # Observations deemed to not be useful part-way through will not be fully converted to location sets
-                    for location in location_set:
-                        self.create_cell(location)
-                    overlapping_features = feature.find_overlap(interpretation['subject'], location_set)
-                    current_feature = None
-                    if len(overlapping_features) == 1:
-                        current_feature, intersection = overlapping_features[0]
-                        current_feature.set_location_set(intersection)
-                    elif len(overlapping_features) == 0:
-                        current_feature = feature.feature(self, interpretation['subject'], location_set)
-                    if current_feature and len(current_feature.location_set) == 1:
-                        self.get_cell(current_feature.predicted_location).just_observed = True
+            if interpretation['subject'] == ['current']: # If an observation is labelled as current, it only exists for purposes of verifying that a cell has just been directly observed
+                for location_set in interpretation['locations']:
+                    if type(location_set) == set: # Observations deemed to not be useful part-way through will not be fully converted to location sets
+                        if len(location_set) == 1:
+                            current_location = next(iter(location_set))
+                            self.create_cell(current_location)
+                            self.get_cell(current_location).just_observed = True
+            else:
+                for location_set in interpretation['locations']:
+                    if type(location_set) == set: # Observations deemed to not be useful part-way through will not be fully converted to location sets
+                        for location in location_set:
+                            self.create_cell(location)
+                        overlapping_features = feature.find_overlap(interpretation['subject'], location_set)
+                        current_feature = None
+                        if len(overlapping_features) == 1:
+                            current_feature, intersection = overlapping_features[0]
+                            current_feature.set_location_set(intersection)
+                        elif len(overlapping_features) == 0:
+                            current_feature = feature.feature(self, interpretation['subject'], location_set)
+                        if current_feature and len(current_feature.location_set) == 1:
+                            self.get_cell(current_feature.predicted_location).just_observed = True
+
         feature.print_features()
+
         guaranteed_visible_cells = [(1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1)]
         while guaranteed_visible_cells:
             relative_coordinates = guaranteed_visible_cells.pop(0)
             current_cell = self.get_cell((relative_coordinates[0] + self.agent_coordinates[0], relative_coordinates[1] + self.agent_coordinates[1]))
             if current_cell:
                 if not current_cell.just_observed:
-                    current_cell.incorporate(['blank'])
+                    current_cell.incorporate(['blank'], confirmed=True)
                     current_cell.just_observed = True
-                if feature.passable.get(current_cell.feature, True):
+                if feature.passable.get(current_cell.feature, True) and current_cell.feature != 'dark area':
                     if abs(relative_coordinates[0]) == 1 or abs(relative_coordinates[1]) == 1:
                         new_coordinates = (relative_coordinates[0] * 2, relative_coordinates[1] * 2)
                         if not new_coordinates in guaranteed_visible_cells:
                             guaranteed_visible_cells.append(new_coordinates)
-    
+
     def __str__(self) -> str:
         return_str = ""
         for row in self.grid:

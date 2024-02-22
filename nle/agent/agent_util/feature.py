@@ -9,20 +9,23 @@ equivalence = {
     'northwest corner': 'horizontal wall',
     'southwest corner': 'horizontal wall',
     'southeast corner': 'horizontal wall',
-    'doorway': 'blank',
-    'dark area': 'blank'
+    'doorway': 'blank'
 }
 
 icons = {
     'horizontal wall': '-',
     'vertical wall': '|',
+    'stone wall': '/',
     'horizontal closed door': '+',
     'vertical closed door': '+',
     'horizontal open door': '|',
     'vertical open door': '-',
     'blank': '.',
+    'empty': ' ',
+    'dark area': ' ',
     'agent': '@',
     'tame little dog': 'd',
+    'jackal': 'd',
     'gold piece': '$',
     'tame kitten': 'f',
     'tame pony': 'u',
@@ -35,7 +38,11 @@ icons = {
     'stairs up': '<',
     'newt': ':',
     'invisible creature': 'I',
-    'empty': ' '
+    'leather armor': '[',
+    'hole': '^',
+    'kobold zombie': 'Z',
+    'sewer rat': 'r',
+    'boulder': "'"
 }
 
 passable = { #Assumed any object without an entry is passable - may update and log in runtime if discovered that move command failed due to impassable object
@@ -43,6 +50,7 @@ passable = { #Assumed any object without an entry is passable - may update and l
     'vertical wall': False,
     'horizontal closed door': False,
     'vertical closed door': False,
+    'stone wall': False,
     'bars': False
 }
 
@@ -52,7 +60,11 @@ mobile = {
     'lichen': True,
     'tame little dog': True,
     'tame kitten': True,
-    'tame pony': True
+    'tame pony': True,
+    'jackal': True,
+    'kobold': True,
+    'kobold zombie': True,
+    'sewer rat': True
 }
 
 features = {}
@@ -80,13 +92,13 @@ class feature():
                 max_distance = distance
                 max_location = location
         if self.predicted_location:
-            self.nle_map.get_cell(self.predicted_location).incorporate(['empty'])
+            self.nle_map.get_cell(self.predicted_location).incorporate(['empty'], confirmed=False)
         self.predicted_location = max_location
-        self.nle_map.get_cell(self.predicted_location).incorporate(self.subject_list)
+        self.nle_map.get_cell(self.predicted_location).incorporate(self.subject_list, confirmed=(len(new_location_set) == 1))
     
     def remove(self):
         if self.predicted_location:
-            self.nle_map.get_cell(self.predicted_location).incorporate(['empty'])
+            self.nle_map.get_cell(self.predicted_location).incorporate(['empty'], confirmed=False)
         features[' '.join(self.subject_list)].remove(self)
 
 def update_mobile_features(nle_map) -> None: # Accounts for any mobile feature to move by 1 each turn, expand possible locations
