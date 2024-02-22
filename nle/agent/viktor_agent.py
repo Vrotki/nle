@@ -11,6 +11,17 @@ int_stats: List[str] = [
 scale_stats: List[str] = ['strength', 'hp', 'energy', 'xp']
 str_stats = ['position', 'hunger', 'encumbrance', 'alignment', 'condition']
 
+movement_mappings = {
+    'w': 'north',
+    'a': 'west',
+    's': 'south',
+    'd': 'east',
+    'q': 'northwest',
+    'e': 'northeast',
+    'z': 'southwest',
+    'c': 'southeast'
+}
+
 class viktor_agent:
     def __init__(self, env: NLE):
         self.x: int = 0
@@ -22,8 +33,10 @@ class viktor_agent:
         self.stats: Dict = {}
         self.inventory: List[str] = []
         self.character_class: str = None
+        self.last_text_message: str = None
         
     def update_stats(self, blstats: List[str]):
+        self.stats['previous_position'] = self.stats.get('position', '')
         for current_value in blstats:
             split_stat = current_value.split(": ")
             current_stat_name = split_stat[0].lower().replace(" ", "_")
@@ -39,7 +52,7 @@ class viktor_agent:
 
     def act(self, specified_command = None):
         if specified_command:
-            command = specified_command
+            command = movement_mappings.get(specified_command, specified_command)
         else:
             command = self.think() #"wait"
         try:
@@ -48,12 +61,12 @@ class viktor_agent:
             print(specified_command + ' is not a valid command.\n')
             return
         self.surroundings = obsv['text_glyphs'].split("\n") # Description of surroundings
-        text_message: str = obsv['text_message'] # Immediate feedback, like "It's solid stone."
-        self.nle_map.update_position(command, text_message)
-        self.nle_map.update_surroundings(self.surroundings)
+        self.last_text_message: str = obsv['text_message'] # Immediate feedback, like "It's solid stone."
         self.update_stats(obsv['text_blstats'].split('\n')) # Description of stats, statuses, and progress
         self.inventory = obsv['text_inventory'].split('\n') # Description of each inventory item
         self.character_class = obsv['text_cursor'].split(' ')[-1] # Description of character class
+        self.nle_map.update_position(command)
+        self.nle_map.update_surroundings(self.surroundings)
 
     def interpret(self, text_glyph: str, verbose: bool = False) -> Dict:
         original_glyph = text_glyph
@@ -128,76 +141,3 @@ class viktor_agent:
             'locations': glyph_location,
             'glyph': original_glyph
         })
-
-    def allows_move(self, text_message: str) -> bool:
-        if text_message.startswith('You kill '):
-            return(False)
-        elif text_message == "It's solid stone.":
-            return(False)
-        elif text_message == "It's a wall.":
-            return(False)
-        elif text_message.startswith('You stop. '):
-            return(False)
-        elif text_message.startswith('The door resists'):
-            return(False)
-        elif text_message.startswith('The door opens'):
-            return(False)
-        elif text_message.startswith('Wait! '):
-            return(False)
-        elif text_message.startswith('It recoils! '):
-            return(False)
-        elif text_message.startswith('You miss '):
-            return(False)
-        elif text_message.startswith('You hit '):
-            return(False)
-        elif text_message.startswith("You can't move"):
-            return(False)
-        elif text_message.startswith("You cannot pass"):
-            return(False)
-        elif text_message.startswith("You try to move the boulder, but in vain"):
-            return(False)
-        return(True)
-
-'''
-observation_keys=(
-    "glyphs",
-    "chars",
-    "colors",
-    "specials",
-    "blstats",
-    "message",
-    "inv_glyphs",
-    "inv_strs",
-    "inv_letters",
-    "inv_oclasses",
-    "screen_descriptions",
-    "tty_chars",
-    "tty_colors",
-    "tty_cursor",
-)
-
-Commands:
-    0 MiscAction.MORE
-    1 CompassDirection.N
-    2 CompassDirection.E
-    3 CompassDirection.S
-    4 CompassDirection.W
-    5 CompassDirection.NE
-    6 CompassDirection.SE
-    7 CompassDirection.SW
-    8 CompassDirection.NW
-    9 CompassDirectionLonger.N
-    10 CompassDirectionLonger.E
-    11 CompassDirectionLonger.S
-    12 CompassDirectionLonger.W
-    13 CompassDirectionLonger.NE
-    14 CompassDirectionLonger.SE
-    15 CompassDirectionLonger.SW
-    16 CompassDirectionLonger.NW
-    17 MiscDirection.UP
-    18 MiscDirection.DOWN
-    19 MiscDirection.WAIT
-    20 Command.KICK
-    21 Command.EAT
-    22 Command.SEARCH
-'''

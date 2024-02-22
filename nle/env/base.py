@@ -572,7 +572,7 @@ class NLE(gym.Env):
                         break
 
                 # Otherwise, auto-decline.
-                observation, done = self.nethack.step(ASCII_ESC)
+                observation, done = self.nethack.step(ASCII_y)#self.nethack.step(ASCII_ESC)
 
             break
 

@@ -50,6 +50,7 @@ def test(flags):
     current_agent.act('wait')
     while(continue_run):
         env.render()
+        print(current_agent.last_text_message)
         print(current_agent.nle_map)
         new_command = input('Enter "quit" to terminate run: ')
         continue_run = new_command != 'quit'
@@ -79,3 +80,47 @@ if __name__ == "__main__":
 
 # Run with python -m nle.agent.viktor_main --mode=test
 # Run step by step: python -m nle.agent.viktor_main --mode=step_test
+
+'''
+observation_keys=(
+    "glyphs",
+    "chars",
+    "colors",
+    "specials",
+    "blstats",
+    "message",
+    "inv_glyphs",
+    "inv_strs",
+    "inv_letters",
+    "inv_oclasses",
+    "screen_descriptions",
+    "tty_chars",
+    "tty_colors",
+    "tty_cursor",
+)
+
+Commands:
+    0 MiscAction.MORE
+    1 CompassDirection.N
+    2 CompassDirection.E
+    3 CompassDirection.S
+    4 CompassDirection.W
+    5 CompassDirection.NE
+    6 CompassDirection.SE
+    7 CompassDirection.SW
+    8 CompassDirection.NW
+    9 CompassDirectionLonger.N
+    10 CompassDirectionLonger.E
+    11 CompassDirectionLonger.S
+    12 CompassDirectionLonger.W
+    13 CompassDirectionLonger.NE
+    14 CompassDirectionLonger.SE
+    15 CompassDirectionLonger.SW
+    16 CompassDirectionLonger.NW
+    17 MiscDirection.UP
+    18 MiscDirection.DOWN
+    19 MiscDirection.WAIT
+    20 Command.KICK
+    21 Command.EAT
+    22 Command.SEARCH
+'''

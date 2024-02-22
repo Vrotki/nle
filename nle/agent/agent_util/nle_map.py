@@ -93,8 +93,8 @@ class nle_map():
         except:
             return(None)
 
-    def update_position(self, command: str, text_message: str) -> None:
-        if command in movement_commands and self.agent.allows_move(text_message):
+    def update_position(self, command: str) -> None:
+        if command in movement_commands and self.agent.stats['previous_position'] != self.agent.stats['position']: #self.agent.allows_move(self.agent.last_text_message):
                 # Need to use It's solid stone to determine whether certain dark areas are passable
             coordinate_changes = movement_commands[command]
             self.get_cell(self.agent_coordinates).glyph = '.'
@@ -150,6 +150,8 @@ class nle_map():
                         new_coordinates = (relative_coordinates[0] * 2, relative_coordinates[1] * 2)
                         if not new_coordinates in guaranteed_visible_cells:
                             guaranteed_visible_cells.append(new_coordinates)
+
+        self.get_cell(self.agent_coordinates).incorporate(['agent'], confirmed=False)
 
     def __str__(self) -> str:
         return_str = ""

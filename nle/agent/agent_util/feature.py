@@ -42,7 +42,9 @@ icons = {
     'hole': '^',
     'kobold zombie': 'Z',
     'sewer rat': 'r',
-    'boulder': "'"
+    'boulder': "'",
+    'anti magic trap': '^',
+    'fox': 'd'
 }
 
 passable = { #Assumed any object without an entry is passable - may update and log in runtime if discovered that move command failed due to impassable object
