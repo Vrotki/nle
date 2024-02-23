@@ -3,6 +3,7 @@ import math
 from typing import Dict, List
 from nle.env import NLE
 from nle.agent.agent_util.nle_map import nle_map
+import nle.agent.agent_util.feature as feature
 import nle.agent.agent_util.misc_util as misc_util
 
 int_stats: List[str] = [
@@ -34,6 +35,7 @@ class viktor_agent:
         self.inventory: List[str] = []
         self.character_class: str = None
         self.last_text_message: str = None
+        self.current_goal: str = None
         
     def update_stats(self, blstats: List[str]):
         self.stats['previous_position'] = self.stats.get('position', '')
@@ -47,7 +49,45 @@ class viktor_agent:
             elif current_stat_name in str_stats:
                 self.stats[current_stat_name] = split_stat[-1]
 
-    def think(self):
+    def generate_goal(self):
+        # Generates an overall priority for the agent, based on current circumstances
+        return('explore')
+
+    def can_explore(self, current_cell):
+        if current_cell.confirmed_feature and feature.passable.get(current_cell.confirmed_feature, True):
+            for relative_x, relative_y in [(-1, -1), (1, 1), (-1, 0), (1, 0), (-1, 1), (1, -1), (0, 1), (0, -1)]:
+                neighbor = self.nle_map.get_cell((current_cell.x + relative_x, current_cell.y + relative_y))
+                if (not neighbor) or (not neighbor.confirmed_feature):
+                    return(True)
+        return(False)
+
+    def find_goal_locations(self):
+        goal_locations = []
+        if self.current_goal == 'explore':
+            for x in range(self.nle_map.origin_coordinates[0], self.nle_map.origin_coordinates[0] + self.nle_map.grid_width):
+                for y in range(self.nle_map.origin_coordinates[1] - self.nle_map.grid_height + 1, self.nle_map.origin_coordinates[1] + 1):
+                    current_cell = self.nle_map.get_cell((x, y))
+                    if self.can_explore(current_cell):
+                        goal_locations.append((x, y))
+        return(goal_locations)
+
+    def think(self): # Note - use more commmand to escape prompts like eat
+        # Think about current priorities, like explore, find a specific feature seen earlier, fight, eat, loot
+        self.current_goal = self.generate_goal()
+
+        # Identify what type of cell to look for - a cell closer to an previously seen feature, a cell with at least 1 non-confirmed neighbor, monsters, etc.
+        # Search for a collection of cells that qualify, and somehow choose between them
+        goal_locations = self.find_goal_locations()
+
+        if len(goal_locations) > 0:
+            print(goal_locations)
+        # Use iterative DFS while remembering which cells have been reached by other paths to find a path to that cell
+        # Return the first action of that path while remembering the rest of the path
+        # Ideally try to re-use a plan between action steps if circumstances don't change
+            # A plan should be designed with conditions generated when it is created - if any of these conditions is broken, or the agent's overall
+            # priorities change, the plan can no longer be followed
+        # Goal function:
+        #   True if last location of path is in goal_locations
         return('wait')
 
     def act(self, specified_command = None):

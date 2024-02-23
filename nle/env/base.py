@@ -191,7 +191,7 @@ class NLE(gym.Env):
         actions=None,
         options=None,
         wizard=False,
-        allow_all_yn_questions=False,
+        allow_all_yn_questions=True,#False,
         allow_all_modes=False,
         spawn_monsters=True,
     ):

@@ -19,6 +19,7 @@ class cell():
         self.glyph: str = glyph
         self.feature: str = 'empty'
         self.confirmed_glyph: str = None
+        self.confirmed_feature: str = None
         self.passable: bool = True
         self.just_observed: bool = False
     
