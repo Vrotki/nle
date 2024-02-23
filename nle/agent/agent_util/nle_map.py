@@ -12,6 +12,17 @@ movement_commands = {
     'southeast': (1, -1)
 }
 
+reverse_movement_commands = {
+    '(1, 0)': 'east',
+    '(1, 1)': 'northeast',
+    '(0, 1)': 'north',
+    '(-1, 1)': 'northwest',
+    '(-1, 0)': 'west',
+    '(-1, -1)': 'southwest',
+    '(0, -1)': 'south',
+    '(1, -1)': 'southeast'
+}
+
 class cell():
     def __init__(self, coordinates: Tuple[int, int], glyph: str = " ") -> None:
         self.x: int = coordinates[0]
