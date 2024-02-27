@@ -33,7 +33,8 @@ class cell():
         self.confirmed_feature: str = None
         self.passable: bool = True
         self.just_observed: bool = False
-    
+        self.locked: bool = False
+
     def __str__(self) -> str:
         if not self.confirmed_glyph:
             return(self.glyph)
@@ -43,7 +44,7 @@ class cell():
             return(self.confirmed_glyph)
 
     def incorporate(self, glyph_subject: List[str], confirmed: bool = False) -> None:
-        if glyph_subject != ['current']:
+        if glyph_subject != ['current'] and not self.locked:
             str_subject = ' '.join(glyph_subject)
             if str_subject in feature.equivalence: # Converts something like northeast room corner to horizontal wall due to identical appearance and functionality
                 str_subject = feature.equivalence[str_subject]
@@ -106,14 +107,23 @@ class nle_map():
             return(None)
 
     def update_position(self, command: str) -> None:
-        if command in movement_commands and self.agent.stats['previous_position'] != self.agent.stats['position']: #self.agent.allows_move(self.agent.last_text_message):
+        if command in movement_commands: #self.agent.allows_move(self.agent.last_text_message):
                 # Need to use It's solid stone to determine whether certain dark areas are passable
             coordinate_changes = movement_commands[command]
-            self.get_cell(self.agent_coordinates).glyph = '.'
-            self.agent.x += coordinate_changes[0]
-            self.agent.y += coordinate_changes[1]
-            self.agent_coordinates = (self.agent.x, self.agent.y)
-            self.get_cell(self.agent_coordinates).glyph = '@'
+            if self.agent.stats['previous_position'] != self.agent.stats['position']:
+                self.get_cell(self.agent_coordinates).glyph = '.'
+                self.agent.x += coordinate_changes[0]
+                self.agent.y += coordinate_changes[1]
+                self.agent_coordinates = (self.agent.x, self.agent.y)
+                self.get_cell(self.agent_coordinates).glyph = '@'
+            elif self.agent.current_goal == 'explore':
+                attempted_cell = self.get_cell((self.agent_coordinates[0] + coordinate_changes[0], self.agent_coordinates[1] + coordinate_changes[1]))
+                if not feature.mobile.get(attempted_cell.confirmed_feature, False):
+                    if not (self.agent.last_text_message.startswith('You stop') or self.agent.is_combat_message(self.agent.last_text_message)):
+                        # Correctly detects when agent is pushing a boulder and the boulder gets stuck
+                        # Should avoid labelling something as stuck when it isn't, such as in combat or if walking into a pet
+                        attempted_cell.incorporate(['stuck'], confirmed=True)
+                        attempted_cell.locked = True
         print('Current location: ' + str(self.agent_coordinates))
 
     def update_surroundings(self, text_glyphs: List[str]) -> None:

@@ -50,10 +50,6 @@ class viktor_agent:
             elif current_stat_name in str_stats:
                 self.stats[current_stat_name] = split_stat[-1]
 
-    def generate_goal(self):
-        # Generates an overall priority for the agent, based on current circumstances
-        return('explore')
-
     def can_explore(self, location: Tuple[int, int]) -> bool:
         current_cell = self.nle_map.get_cell(location)
         if current_cell.confirmed_feature and feature.passable.get(current_cell.confirmed_feature, True):
@@ -63,12 +59,24 @@ class viktor_agent:
                     return(True)
         return(False)
 
-    def find_goal_locations(self):
+    def find_goal_locations(self, specified_goal=None):
+        if not specified_goal:
+            specified_goal = self.current_goal
         goal_locations = []
-        if self.current_goal == 'explore':
+        if specified_goal == 'explore': # If exploring and no goal locations, may have to go into search procedure
             for x in range(self.nle_map.origin_coordinates[0], self.nle_map.origin_coordinates[0] + self.nle_map.grid_width):
                 for y in range(self.nle_map.origin_coordinates[1] - self.nle_map.grid_height + 1, self.nle_map.origin_coordinates[1] + 1):
                     if self.can_explore((x, y)):
+                        goal_locations.append((x, y))
+        #elif self.current_goal == 'search': After realizing that dungeon has no ways out, start searching for hidden doors
+        #   Once a door is found, it should create a closed door observation that will automatically enter the open door procedure
+        # Search would involve searching and marking every passable cell in the dungeon, starting with current position
+        #   Treat any non-marked cell as a goal location, with search actions between each move
+        elif specified_goal == 'open door':
+            for x in range(self.nle_map.origin_coordinates[0], self.nle_map.origin_coordinates[0] + self.nle_map.grid_width):
+                for y in range(self.nle_map.origin_coordinates[1] - self.nle_map.grid_height + 1, self.nle_map.origin_coordinates[1] + 1):
+                    current_cell = self.nle_map.get_cell((x, y))
+                    if current_cell.confirmed_feature and current_cell.confirmed_feature in ['horizontal closed door', 'vertical closed door']:
                         goal_locations.append((x, y))
         return(goal_locations)
 
@@ -78,20 +86,22 @@ class viktor_agent:
         for relative_x, relative_y in [(-1, -1), (1, 1), (-1, 0), (1, 0), (-1, 1), (1, -1), (0, 1), (0, -1)]:
             neighbor = self.nle_map.get_cell((current_cell.x + relative_x, current_cell.y + relative_y))
             if neighbor and neighbor.confirmed_feature and feature.passable.get(neighbor.confirmed_feature, True):
-                neighbor_locations.append((neighbor.x, neighbor.y))
+                if (feature.allows_diagonals.get(current_cell.confirmed_feature, True) and feature.allows_diagonals.get(neighbor.confirmed_feature, True)) or abs(relative_x) != abs(relative_y):
+                    # Allow movement if non-diagonal or if both features allow digonal movement
+                    neighbor_locations.append((neighbor.x, neighbor.y))
         return(neighbor_locations)
 
     def iterative_deepening(self, goal_locations: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
         solution: List[Tuple[int, int]] = None
         depth_limit = 0
-        while not solution:
-            solution = self.bounded_DFS(goal_locations, depth_limit)
+        while (not solution) and depth_limit < (self.nle_map.grid_height * self.nle_map.grid_width * 5): # Eventually figure out that algorithm is stuck
+            solution = self.bounded_DFS(goal_locations, depth_limit) # Could alternatively return whether increasing depth limit would lead to more paths
             depth_limit += 1
         return(solution)
 
     def bounded_DFS(self, goal_locations: List[Tuple[int, int]], depth_limit: int) -> List[Tuple[int, int]]:
         frontier: List[List[Tuple[int, int]]] = [[(self.x, self.y)]]
-        visited: Dict[str, Tuple[int, int]] = {str((self.x, self.y)): True}
+        visited: Dict[str, bool] = {str((self.x, self.y)): True}
         while frontier:
             current_plan = frontier.pop()
             if len(current_plan) == depth_limit:
@@ -105,6 +115,21 @@ class viktor_agent:
                         visited[str_neighbor] = True
         return(None)
 
+    def generate_goal(self):
+        return_value = 'explore'
+        # Generates an overall priority for the agent, based on current circumstances
+        if (feature.features.get('horizontal closed door', []) or feature.features.get('vertical closed door', [])) and self.find_goal_locations(specified_goal='open door'):
+            # Check for any door features - if so, check to make sure there is at least 1 confirmed door on the map
+            # Only the 2nd check is necessary, but it only needs to be done if the first check is true, and the first check is much less expensive
+            return_value = 'open door'
+
+        if return_value != 'explore' and return_value == self.current_goal and not self.current_plan:
+            return_value = 'explore' # If procedure resulted in empty plan, try something else
+
+        if return_value != self.current_goal:
+            self.current_plan = None
+        return(return_value)
+
     def think(self): # Note - use more commmand to escape prompts like eat
         determined_action = 'wait'
         # Think about current priorities, like explore, find a specific feature seen earlier, fight, eat, loot
@@ -114,12 +139,34 @@ class viktor_agent:
         # Search for a collection of cells that qualify, and somehow choose between them
         goal_locations = self.find_goal_locations()
 
-        if len(goal_locations) > 0:
-            plan = self.iterative_deepening(goal_locations)
-            if len(plan) > 1:
-                first_action = nle_map.reverse_movement_commands[str((plan[1][0] - plan[0][0], plan[1][1] - plan[0][1]))]
+        if len(goal_locations) > 0: # Need to leave open door procedure after kicking down door, shouldn't see any more door features
+            if self.current_plan:
+                self.current_plan.pop(0) # First action was already done last time
+                if len(self.current_plan) >= 2 and type(self.current_plan[1]) == str and type(self.current_plan[0]) == tuple:
+                    self.current_plan.pop(0) # Don't allow isolated coordinates, they need to be in pairs
+
+            if self.current_plan and (len(self.current_plan) >= 2 or type(self.current_plan[0]) == str) and self.current_plan[-1] in goal_locations:
+                # If plan from last time still have another move action and has a desirable final destination, continue following it
+                plan = self.current_plan
+            else:
+                plan = self.iterative_deepening(goal_locations)
+            
+            if self.current_goal == 'open door': # Insert any relevant non-movement actions after iterative DFS to reach goal location
+                if self.last_text_message.startswith('This door is locked') or \
+                        self.last_text_message.startswith('WHAMM'):
+                    plan.insert(0, 'kick')
+
+            if (plan and type(plan[0]) == str) or len(plan) > 1: # Plan requires at least 1 manual command or 2+ coordinates
+                if type(plan[0]) == str:
+                    first_action = plan[0]
+                else:
+                    first_action = nle_map.reverse_movement_commands[str((plan[1][0] - plan[0][0], plan[1][1] - plan[0][1]))]
                 self.current_plan = plan
                 determined_action = first_action
+            else:
+                print('Plan too short: ' + str(self.current_plan))
+        else:
+            self.current_plan = None
         # Use iterative DFS while remembering which cells have been reached by other paths to find a path to that cell
         # Return the first action of that path while remembering the rest of the path
         # Ideally try to re-use a plan between action steps if circumstances don't change
@@ -132,6 +179,8 @@ class viktor_agent:
     def act(self, specified_command = None):
         if specified_command:
             command = movement_mappings.get(specified_command, specified_command)
+            self.current_goal = None
+            self.current_plan = None
         else:
             command = self.think()
         try:
@@ -149,6 +198,7 @@ class viktor_agent:
         self.env.render()
         print(self.nle_map)
         if not specified_command:
+            print('Current coordinates: ' + str((self.x, self.y)))
             print('Current plan: ' + str(self.current_goal) + ' ' + str(self.current_plan))
             print('Decided action: ' + command)
 
@@ -228,3 +278,13 @@ class viktor_agent:
             'locations': glyph_location,
             'glyph': original_glyph
         })
+
+    def is_combat_message(self, text_message: str):
+        for combat_start_message in ['You kill ', 'You hit ', 'You miss ', 'You destroy ']:
+            if text_message.startswith(combat_start_message):
+                return(True)
+        for combat_end_message in [' hits!', ' misses!', ' is killed!', ' bites!']:
+            if text_message.endswith(combat_start_message):
+                return(True)
+        return(False)
+# Account for messages like "The kobold zombie hits! The kitten drops a gold piece." - maybe replace ! and ? with . and split by .

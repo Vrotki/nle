@@ -45,16 +45,26 @@ icons = {
     'boulder': "'",
     'anti magic trap': '^',
     'fox': 'd',
-    'chest': ')'
+    'chest': ')',
+    'stuck': 'X',
+    'grid bug': 'x',
+    'stairs down': '>',
+    'goblin': 'o'
 }
 
 passable = { #Assumed any object without an entry is passable - may update and log in runtime if discovered that move command failed due to impassable object
     'horizontal wall': False,
     'vertical wall': False,
-    'horizontal closed door': False,
-    'vertical closed door': False,
+    'horizontal closed door': True,
+    'vertical closed door': True,
     'stone wall': False,
-    'bars': False
+    'bars': False,
+    'stuck': False
+}
+
+allows_diagonals = {
+    'horizontal open door': False,
+    'vertical open door': False
 }
 
 mobile = {
@@ -67,7 +77,9 @@ mobile = {
     'jackal': True,
     'kobold': True,
     'kobold zombie': True,
-    'sewer rat': True
+    'sewer rat': True,
+    'grid bug': True,
+    'goblin': True
 }
 
 features = {}
