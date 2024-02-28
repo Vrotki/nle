@@ -79,7 +79,8 @@ mobile = {
     'kobold zombie': True,
     'sewer rat': True,
     'grid bug': True,
-    'goblin': True
+    'goblin': True,
+    'invisible creature': True
 }
 
 features = {}

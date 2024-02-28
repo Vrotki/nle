@@ -66,7 +66,7 @@ class nle_map():
         self.grid_height: int = 1
         self.agent_coordinates: Tuple[int, int] = ((self.agent.x, self.agent.y))
         self.origin_coordinates = self.agent_coordinates
-        self.get_cell((self.agent.x, self.agent.y)).glyph = '@' # Automate this process when setting location
+        #self.get_cell((self.agent.x, self.agent.y)).glyph = '@' # Automate this process when setting location
     
     def create_cell(self, coordinates: Tuple[int, int]) -> None:
         while coordinates[1] > self.origin_coordinates[1]: # If new cell would be above current origin, need to move origin up and add new rows

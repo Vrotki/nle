@@ -59,32 +59,6 @@ class viktor_agent:
                     return(True)
         return(False)
 
-    def find_goal_locations(self, specified_goal=None):
-        if not specified_goal:
-            specified_goal = self.current_goal
-        goal_locations = []
-        if specified_goal == 'explore': # If exploring and no goal locations, may have to go into search procedure
-            for x in range(self.nle_map.origin_coordinates[0], self.nle_map.origin_coordinates[0] + self.nle_map.grid_width):
-                for y in range(self.nle_map.origin_coordinates[1] - self.nle_map.grid_height + 1, self.nle_map.origin_coordinates[1] + 1):
-                    if self.can_explore((x, y)):
-                        goal_locations.append((x, y))
-        #elif self.current_goal == 'search': After realizing that dungeon has no ways out, start searching for hidden doors
-        #   Once a door is found, it should create a closed door observation that will automatically enter the open door procedure
-        # Search would involve searching and marking every passable cell in the dungeon, starting with current position
-        #   Treat any non-marked cell as a goal location, with search actions between each move
-        elif specified_goal == 'open door':
-            for x in range(self.nle_map.origin_coordinates[0], self.nle_map.origin_coordinates[0] + self.nle_map.grid_width):
-                for y in range(self.nle_map.origin_coordinates[1] - self.nle_map.grid_height + 1, self.nle_map.origin_coordinates[1] + 1):
-                    current_cell = self.nle_map.get_cell((x, y))
-                    if current_cell.confirmed_feature and current_cell.confirmed_feature in ['horizontal closed door', 'vertical closed door']:
-                        goal_locations.append((x, y))
-        elif specified_goal == 'random':
-            for x in range(self.nle_map.origin_coordinates[0], self.nle_map.origin_coordinates[0] + self.nle_map.grid_width):
-                for y in range(self.nle_map.origin_coordinates[1] - self.nle_map.grid_height + 1, self.nle_map.origin_coordinates[1] + 1):
-                    if x != self.x and y != self.y:
-                        goal_locations.append((x, y))
-        return(goal_locations)
-
     def get_movement_neighbors(self, location) -> List[Tuple[int, int]]:
         current_cell = self.nle_map.get_cell(location)
         neighbor_locations = []
@@ -94,7 +68,7 @@ class viktor_agent:
             # Random order should help avoid getting stuck in exploring the same 2 cells repeatedly and decrease direction bias
             neighbor = self.nle_map.get_cell((current_cell.x + relative_x, current_cell.y + relative_y))
             if neighbor and neighbor.confirmed_feature and feature.passable.get(neighbor.confirmed_feature, True):
-                if (feature.allows_diagonals.get(current_cell.confirmed_feature, True) and feature.allows_diagonals.get(neighbor.confirmed_feature, True)) or abs(relative_x) != abs(relative_y):
+                if (feature.allows_diagonals.get(current_cell.confirmed_feature, True) and feature.allows_diagonals.get(neighbor.confirmed_feature, True)) or abs(relative_x) != abs(relative_y) or (self.current_goal == 'combat' and abs(relative_x) + abs(relative_y) <= 2):
                     # Allow movement if non-diagonal or if both features allow digonal movement
                     neighbor_locations.append((neighbor.x, neighbor.y))
         return(neighbor_locations)
@@ -102,7 +76,7 @@ class viktor_agent:
     def iterative_deepening(self, goal_locations: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
         solution: List[Tuple[int, int]] = None
         depth_limit = 0
-        while (not solution) and depth_limit < (self.nle_map.grid_height * self.nle_map.grid_width * 5): # Eventually figure out that algorithm is stuck
+        while (not solution) and depth_limit <= (self.nle_map.grid_height * self.nle_map.grid_width / 2): # Eventually figure out that algorithm is stuck
             solution = self.bounded_DFS(goal_locations, depth_limit) # Could alternatively return whether increasing depth limit would lead to more paths
             depth_limit += 1
         if not solution:
@@ -125,10 +99,53 @@ class viktor_agent:
                         visited[str_neighbor] = True
         return(None)
 
+    def find_goal_locations(self, specified_goal=None):
+        if not specified_goal:
+            specified_goal = self.current_goal
+        goal_locations = []
+        if specified_goal == 'explore': # If exploring and no goal locations, may have to go into search procedure
+            for x in range(self.nle_map.origin_coordinates[0], self.nle_map.origin_coordinates[0] + self.nle_map.grid_width):
+                for y in range(self.nle_map.origin_coordinates[1] - self.nle_map.grid_height + 1, self.nle_map.origin_coordinates[1] + 1):
+                    if self.can_explore((x, y)):
+                        goal_locations.append((x, y))
+        #elif self.current_goal == 'search': After realizing that dungeon has no ways out, start searching for hidden doors
+        # Search would involve searching and marking every passable cell in the dungeon, starting with current position
+        #   Treat any non-marked cell as a goal location, with search actions between each move
+        elif specified_goal == 'open door':
+            for x in range(self.nle_map.origin_coordinates[0], self.nle_map.origin_coordinates[0] + self.nle_map.grid_width):
+                for y in range(self.nle_map.origin_coordinates[1] - self.nle_map.grid_height + 1, self.nle_map.origin_coordinates[1] + 1):
+                    current_cell = self.nle_map.get_cell((x, y))
+                    if current_cell.confirmed_feature and current_cell.confirmed_feature in ['horizontal closed door', 'vertical closed door']:
+                        goal_locations.append((x, y))
+        elif specified_goal == 'combat':
+            for x in range(self.nle_map.origin_coordinates[0], self.nle_map.origin_coordinates[0] + self.nle_map.grid_width):
+                for y in range(self.nle_map.origin_coordinates[1] - self.nle_map.grid_height + 1, self.nle_map.origin_coordinates[1] + 1):
+                    current_cell = self.nle_map.get_cell((x, y))
+                    if current_cell.just_observed and feature.mobile.get(current_cell.feature, False) and not current_cell.feature.startswith('tame '):
+                        goal_locations.append((x, y))
+        elif specified_goal == 'down':
+            for x in range(self.nle_map.origin_coordinates[0], self.nle_map.origin_coordinates[0] + self.nle_map.grid_width):
+                for y in range(self.nle_map.origin_coordinates[1] - self.nle_map.grid_height + 1, self.nle_map.origin_coordinates[1] + 1):
+                    current_cell = self.nle_map.get_cell((x, y))
+                    if current_cell.confirmed_feature and current_cell.confirmed_feature == 'stairs down':
+                        goal_locations.append((x, y))
+        elif specified_goal == 'random':
+            for x in range(self.nle_map.origin_coordinates[0], self.nle_map.origin_coordinates[0] + self.nle_map.grid_width):
+                for y in range(self.nle_map.origin_coordinates[1] - self.nle_map.grid_height + 1, self.nle_map.origin_coordinates[1] + 1):
+                    if x != self.x and y != self.y:
+                        goal_locations.append((x, y))
+        return(goal_locations)
+
     def generate_goal(self):
         return_value = 'explore'
         # Generates an overall priority for the agent, based on current circumstances
-        if (feature.features.get('horizontal closed door', []) or feature.features.get('vertical closed door', [])) and self.find_goal_locations(specified_goal='open door'):
+        if self.is_combat_message(self.last_text_message) or self.find_goal_locations(specified_goal='combat'):
+            return_value = 'combat'
+        
+        elif self.find_goal_locations(specified_goal='down'):
+            return_value = 'down'
+
+        elif (feature.features.get('horizontal closed door', []) or feature.features.get('vertical closed door', [])) and self.find_goal_locations(specified_goal='open door'):
             # Check for any door features - if so, check to make sure there is at least 1 confirmed door on the map
             # Only the 2nd check is necessary, but it only needs to be done if the first check is true, and the first check is much less expensive
             return_value = 'open door'
@@ -164,10 +181,16 @@ class viktor_agent:
             else:
                 plan = self.iterative_deepening(goal_locations)
             
+            # Tune plan beyond just movement to goal location
             if self.current_goal == 'open door': # Insert any relevant non-movement actions after iterative DFS to reach goal location
                 if self.last_text_message.startswith('This door is locked') or \
                         self.last_text_message.startswith('WHAMM'):
                     plan.insert(0, 'kick')
+            elif self.current_goal == 'combat' and not plan:
+                goal_locations = self.find_goal_locations(specified_goal='random')
+                plan = self.iterative_deepening(goal_locations)
+            elif self.current_goal == 'down' and (self.x, self.y) in goal_locations:
+                plan = ['down']
 
             if (plan and type(plan[0]) == str) or len(plan) > 1: # Plan requires at least 1 manual command or 2+ coordinates
                 if type(plan[0]) == str:
@@ -194,6 +217,11 @@ class viktor_agent:
         except:
             print(specified_command + ' is not a valid command.\n')
             return
+        if command == 'down':
+            self.nle_map = nle_map.nle_map(self)
+            feature.features.clear()
+            self.current_goal = None
+            self.current_plan = None
         self.surroundings = obsv['text_glyphs'].split("\n") # Description of surroundings
         self.last_text_message: str = obsv['text_message'] # Immediate feedback, like "It's solid stone."
         self.update_stats(obsv['text_blstats'].split('\n')) # Description of stats, statuses, and progress
@@ -284,11 +312,13 @@ class viktor_agent:
         })
 
     def is_combat_message(self, text_message: str):
-        for combat_start_message in ['You kill ', 'You hit ', 'You miss ', 'You destroy ', 'You cannot escape from ']:
-            if text_message.startswith(combat_start_message):
-                return(True)
-        for combat_end_message in [' hits!', ' misses!', ' is killed!', ' bites!']:
-            if text_message.endswith(combat_start_message):
-                return(True)
+        split_message = text_message.replace('!', '.').replace('. ', '.').replace('. ', '.').split('.')
+        for current_message in split_message:
+            for combat_start_message in ['You kill ', 'You hit ', 'You miss ', 'You destroy ', 'You cannot escape from ', 'You get zapped']:
+                if current_message.startswith(combat_start_message):
+                    return(True)
+            for combat_end_message in [' is killed', ' hits', ' misses', ' bites', ' misses you']:
+                if current_message.endswith(combat_end_message):
+                    return(True)
         return(False)
 # Account for messages like "The kobold zombie hits! The kitten drops a gold piece." - maybe replace ! and ? with . and split by .
