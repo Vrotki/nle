@@ -106,7 +106,7 @@ class nle_map():
         except:
             return(None)
 
-    def update_position(self, command: str) -> None:
+    def update_position(self, command: str, verbose: bool = False) -> None:
         if command in movement_commands: #self.agent.allows_move(self.agent.last_text_message):
                 # Need to use It's solid stone to determine whether certain dark areas are passable
             coordinate_changes = movement_commands[command]
@@ -124,9 +124,10 @@ class nle_map():
                         # Should avoid labelling something as stuck when it isn't, such as in combat or if walking into a pet
                         attempted_cell.incorporate(['stuck'], confirmed=True)
                         attempted_cell.locked = True
-        print('Current location: ' + str(self.agent_coordinates))
+        if verbose:
+            print('Current location: ' + str(self.agent_coordinates))
 
-    def update_surroundings(self, text_glyphs: List[str]) -> None:
+    def update_surroundings(self, text_glyphs: List[str], verbose: bool = False) -> None:
         feature.update_mobile_features(self) # Updates possible locations of any features that can move
 
         for x in range(self.origin_coordinates[0], self.origin_coordinates[0] + self.grid_width):
@@ -134,7 +135,7 @@ class nle_map():
                 self.get_cell((x, y)).just_observed = False
 
         for text_glyph in text_glyphs:
-            interpretation = self.agent.interpret(text_glyph, verbose=False)
+            interpretation = self.agent.interpret(text_glyph, verbose=verbose)
             if interpretation['subject'] == ['current']: # If an observation is labelled as current, it only exists for purposes of verifying that a cell has just been directly observed
                 for location_set in interpretation['locations']:
                     if type(location_set) == set: # Observations deemed to not be useful part-way through will not be fully converted to location sets
@@ -156,8 +157,8 @@ class nle_map():
                             current_feature = feature.feature(self, interpretation['subject'], location_set)
                         if current_feature and len(current_feature.location_set) == 1:
                             self.get_cell(current_feature.predicted_location).just_observed = True
-
-        feature.print_features()
+        if verbose:
+            feature.print_features()
 
         guaranteed_visible_cells = [(1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1)]
         while guaranteed_visible_cells:

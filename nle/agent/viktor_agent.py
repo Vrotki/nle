@@ -78,12 +78,20 @@ class viktor_agent:
                     current_cell = self.nle_map.get_cell((x, y))
                     if current_cell.confirmed_feature and current_cell.confirmed_feature in ['horizontal closed door', 'vertical closed door']:
                         goal_locations.append((x, y))
+        elif specified_goal == 'random':
+            for x in range(self.nle_map.origin_coordinates[0], self.nle_map.origin_coordinates[0] + self.nle_map.grid_width):
+                for y in range(self.nle_map.origin_coordinates[1] - self.nle_map.grid_height + 1, self.nle_map.origin_coordinates[1] + 1):
+                    if x != self.x and y != self.y:
+                        goal_locations.append((x, y))
         return(goal_locations)
 
     def get_movement_neighbors(self, location) -> List[Tuple[int, int]]:
         current_cell = self.nle_map.get_cell(location)
         neighbor_locations = []
-        for relative_x, relative_y in [(-1, -1), (1, 1), (-1, 0), (1, 0), (-1, 1), (1, -1), (0, 1), (0, -1)]:
+        movement_commands = [(-1, -1), (1, 1), (-1, 0), (1, 0), (-1, 1), (1, -1), (0, 1), (0, -1)]
+        random.shuffle(movement_commands)
+        for relative_x, relative_y in movement_commands:
+            # Random order should help avoid getting stuck in exploring the same 2 cells repeatedly and decrease direction bias
             neighbor = self.nle_map.get_cell((current_cell.x + relative_x, current_cell.y + relative_y))
             if neighbor and neighbor.confirmed_feature and feature.passable.get(neighbor.confirmed_feature, True):
                 if (feature.allows_diagonals.get(current_cell.confirmed_feature, True) and feature.allows_diagonals.get(neighbor.confirmed_feature, True)) or abs(relative_x) != abs(relative_y):
@@ -97,6 +105,8 @@ class viktor_agent:
         while (not solution) and depth_limit < (self.nle_map.grid_height * self.nle_map.grid_width * 5): # Eventually figure out that algorithm is stuck
             solution = self.bounded_DFS(goal_locations, depth_limit) # Could alternatively return whether increasing depth limit would lead to more paths
             depth_limit += 1
+        if not solution:
+            solution = []
         return(solution)
 
     def bounded_DFS(self, goal_locations: List[Tuple[int, int]], depth_limit: int) -> List[Tuple[int, int]]:
@@ -123,8 +133,11 @@ class viktor_agent:
             # Only the 2nd check is necessary, but it only needs to be done if the first check is true, and the first check is much less expensive
             return_value = 'open door'
 
-        if return_value != 'explore' and return_value == self.current_goal and not self.current_plan:
-            return_value = 'explore' # If procedure resulted in empty plan, try something else
+        if return_value == self.current_goal and not self.current_plan: # If procedure resulted in empty plan, try something else
+            if return_value != 'explore':
+                return_value = 'explore'
+            else:
+                return_value = 'random'
 
         if return_value != self.current_goal:
             self.current_plan = None
@@ -163,20 +176,13 @@ class viktor_agent:
                     first_action = nle_map.reverse_movement_commands[str((plan[1][0] - plan[0][0], plan[1][1] - plan[0][1]))]
                 self.current_plan = plan
                 determined_action = first_action
-            else:
+            else: # If stuck on an explore, Ai should literally move in a random valid direction
                 print('Plan too short: ' + str(self.current_plan))
         else:
             self.current_plan = None
-        # Use iterative DFS while remembering which cells have been reached by other paths to find a path to that cell
-        # Return the first action of that path while remembering the rest of the path
-        # Ideally try to re-use a plan between action steps if circumstances don't change
-            # A plan should be designed with conditions generated when it is created - if any of these conditions is broken, or the agent's overall
-            # priorities change, the plan can no longer be followed
-        # Goal function:
-        #   True if last location of path is in goal_locations
         return(determined_action)
 
-    def act(self, specified_command = None):
+    def act(self, specified_command = None, display = True):
         if specified_command:
             command = movement_mappings.get(specified_command, specified_command)
             self.current_goal = None
@@ -194,20 +200,22 @@ class viktor_agent:
         self.inventory = obsv['text_inventory'].split('\n') # Description of each inventory item
         self.character_class = obsv['text_cursor'].split(' ')[-1] # Description of character class
         self.nle_map.update_position(command)
-        self.nle_map.update_surroundings(self.surroundings)
-        self.env.render()
-        print(self.nle_map)
-        if not specified_command:
-            print('Current coordinates: ' + str((self.x, self.y)))
-            print('Current plan: ' + str(self.current_goal) + ' ' + str(self.current_plan))
-            print('Decided action: ' + command)
+        self.nle_map.update_surroundings(self.surroundings, verbose=display)
+        if display:
+            self.env.render()
+            print(self.nle_map)
+            if not specified_command:
+                print('Current coordinates: ' + str((self.x, self.y)))
+                print('Current plan: ' + str(self.current_goal) + ' ' + str(self.current_plan))
+                print('Decided action: ' + command)
 
         # After receiving message "You try to move the boulder, but in vain.", need to log that boulder as a confirmed "stuck boulder" feature that a
         #   boulder observation won't overwrite - treat it as impassable
 
     def interpret(self, text_glyph: str, verbose: bool = False) -> Dict:
         original_glyph = text_glyph
-        print('Interpreting observation: ' + text_glyph)
+        if verbose:
+            print('Interpreting observation: ' + text_glyph)
         superfluous_words = [',', '.']
         location_distances = {'adjacent': 1, 'verynear': 2, 'near': 3, 'far': 6, 'veryfar': 12}
         location_max_distances = {'adjacent': 1, 'verynear': 2, 'near': 5, 'far': 11, 'veryfar': 30}
@@ -222,8 +230,6 @@ class viktor_agent:
         cardinal_directions = ['north', 'west', 'south', 'east']
         text_glyph = text_glyph.replace(' and ', ' ')
         text_glyph = misc_util.remove_multiple_substrings(text_glyph, superfluous_words).replace('very near', 'verynear').replace('very far', 'veryfar').split(' ')
-        if verbose:
-            print(text_glyph)
         location_separated = False
         num_words = len(text_glyph)
         index = 0
@@ -241,8 +247,6 @@ class viktor_agent:
                     glyph_location[location_index] = glyph_location[location_index].split(' ')
                     glyph_location[location_index].pop(-1)
                     angle = misc_util.cardinal_directions_to_angle(glyph_location[location_index])
-                    if verbose:
-                        print(angle)
                     if len(glyph_location[location_index]) <= 2: # Angles like north northeast are too imprecise to incorporate accurately
                         glyph_location[location_index] = set([])
 
@@ -271,8 +275,8 @@ class viktor_agent:
                 glyph_subject = ['stone', 'wall']
             else:
                 glyph_subject = ['current'] # Don't use far dark observations directly, but they help determine which guaranteed visible cells to modify
-
-        print('Encoding ' + str(glyph_subject) + ' about ' + str(min_glyph_distance) + ' away at the coordinates ' + str(glyph_location) +'\n')
+        if verbose:
+            print('Encoding ' + str(glyph_subject) + ' about ' + str(min_glyph_distance) + ' away at the coordinates ' + str(glyph_location) +'\n')
         return({
             'subject': glyph_subject,
             'locations': glyph_location,
@@ -280,7 +284,7 @@ class viktor_agent:
         })
 
     def is_combat_message(self, text_message: str):
-        for combat_start_message in ['You kill ', 'You hit ', 'You miss ', 'You destroy ']:
+        for combat_start_message in ['You kill ', 'You hit ', 'You miss ', 'You destroy ', 'You cannot escape from ']:
             if text_message.startswith(combat_start_message):
                 return(True)
         for combat_end_message in [' hits!', ' misses!', ' is killed!', ' bites!']:

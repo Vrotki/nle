@@ -1,0 +1,1 @@
+python -m nle.agent.viktor_main --mode=fast_test

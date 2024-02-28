@@ -40,7 +40,7 @@ def test(flags):
         repeats = 1
         delay = 0
     elif flags.mode == "fast_test":
-        repeats = 100
+        repeats = 10
         delay = 0
     else:
         repeats = 100
@@ -57,9 +57,9 @@ def test(flags):
         if continue_run:
             for i in range(repeats):
                 if new_command not in ['', 'quit']:
-                    current_agent.act(specified_command=new_command)
+                    current_agent.act(specified_command=new_command, display=(i == repeats - 1))
                 else:
-                    current_agent.act()
+                    current_agent.act(display=(i == repeats - 1))
                 if delay:
                     time.sleep(delay)
                     env.render()
