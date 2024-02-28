@@ -132,9 +132,11 @@ class viktor_agent:
                             if current_cell.feature and feature.mobile.get(current_cell.feature, False) and not current_cell.feature.startswith('tame '):
                                 goal_locations.append((x, y))
                         elif specified_goal == 'surprise combat':
+                            if (x, y) != (self.x, self.y) and current_cell.feature and feature.icons.get(current_cell.feature, '?') == '?':
+                                print('Surprised, interpreting ' + current_cell.feature + ' with glyph ? as enemy')
+                                goal_locations.append((x, y))
                             # If in combat but no visible enemy, try to look for an unidentified feature to attack - maybe it is a monster that isn't in
                             #   the agent's memory? Check for a ? glyph in the other cell and somehow record the glyph subject
-                            goal_locations.append((x, y))
             print('Combat goals: ' + str(goal_locations))
         elif specified_goal == 'down':
             for x in range(self.nle_map.origin_coordinates[0], self.nle_map.origin_coordinates[0] + self.nle_map.grid_width):
@@ -162,8 +164,6 @@ class viktor_agent:
             return_value = 'down'
 
         elif (self.nle_map.features.get('horizontal closed door', []) or self.nle_map.features.get('vertical closed door', [])) and self.find_goal_locations(specified_goal='open door'):
-            # Check for any door features - if so, check to make sure there is at least 1 confirmed door on the map
-            # Only the 2nd check is necessary, but it only needs to be done if the first check is true, and the first check is much less expensive
             return_value = 'open door'
 
         if return_value == self.current_goal and not self.current_plan: # If procedure resulted in empty plan, try something else
@@ -217,8 +217,6 @@ class viktor_agent:
                     first_action = nle_map.reverse_movement_commands[str((plan[1][0] - plan[0][0], plan[1][1] - plan[0][1]))]
                 self.current_plan = plan
                 determined_action = first_action
-            else: # If stuck on an explore, Ai should literally move in a random valid direction
-                print('Plan too short: ' + str(self.current_plan))
         else:
             self.current_plan = None
         return(determined_action)
@@ -233,10 +231,14 @@ class viktor_agent:
         if command == 'reset':
             self.reset_map()
             command = 'wait'
+        elif command == 'render':
+            self.nle_map.update_surroundings(self.surroundings, verbose=True)
+            self.env.render()
         try:
             obsv, reward, done, info = self.env.step(command)
         except:
-            print(specified_command + ' is not a valid command.\n')
+            if command != 'render':
+                print(specified_command + ' is not a valid command.\n')
             return
         if command == 'down':
             self.reset_map()
@@ -246,14 +248,17 @@ class viktor_agent:
         self.inventory = obsv['text_inventory'].split('\n') # Description of each inventory item
         self.character_class = obsv['text_cursor'].split(' ')[-1] # Description of character class
         self.nle_map.update_position(command)
-        self.nle_map.update_surroundings(self.surroundings, verbose=display)
+        self.nle_map.update_surroundings(self.surroundings, verbose=False)#display)
         if display:
-            self.env.render()
+            #self.env.render()
             print(self.nle_map)
+            print(self.last_text_message.replace('!', '.').replace('. ', '.').replace('. ', '.').split('.')[:-1])
+            print('Current coordinates: ' + str((self.x, self.y)))
             if not specified_command:
-                print('Current coordinates: ' + str((self.x, self.y)))
                 print('Current plan: ' + str(self.current_goal) + ' ' + str(self.current_plan))
-                print('Decided action: ' + command)
+            else:
+                print('Current plan: Manually specified')
+            print('Decided action: ' + command)
 
         # After receiving message "You try to move the boulder, but in vain.", need to log that boulder as a confirmed "stuck boulder" feature that a
         #   boulder observation won't overwrite - treat it as impassable
