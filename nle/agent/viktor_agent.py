@@ -37,7 +37,13 @@ class viktor_agent:
         self.last_text_message: str = None
         self.current_goal: str = None
         self.current_plan = None
-        
+
+    def reset_map(self):
+        self.x = 0
+        self.y = 0
+        self.nle_map = nle_map.nle_map(self)
+        self.current_plan = None
+
     def update_stats(self, blstats: List[str]):
         self.stats['previous_position'] = self.stats.get('position', '')
         for current_value in blstats:
@@ -117,12 +123,19 @@ class viktor_agent:
                     current_cell = self.nle_map.get_cell((x, y))
                     if current_cell.confirmed_feature and current_cell.confirmed_feature in ['horizontal closed door', 'vertical closed door']:
                         goal_locations.append((x, y))
-        elif specified_goal == 'combat':
+        elif specified_goal in ['combat', 'surprise combat']:
             for x in range(self.nle_map.origin_coordinates[0], self.nle_map.origin_coordinates[0] + self.nle_map.grid_width):
                 for y in range(self.nle_map.origin_coordinates[1] - self.nle_map.grid_height + 1, self.nle_map.origin_coordinates[1] + 1):
-                    current_cell = self.nle_map.get_cell((x, y))
-                    if current_cell.just_observed and feature.mobile.get(current_cell.feature, False) and not current_cell.feature.startswith('tame '):
-                        goal_locations.append((x, y))
+                    if abs(x - self.x) <= 1 and abs(y - self.y) <= 1:
+                        current_cell = self.nle_map.get_cell((x, y))
+                        if specified_goal == 'combat':
+                            if current_cell.feature and feature.mobile.get(current_cell.feature, False) and not current_cell.feature.startswith('tame '):
+                                goal_locations.append((x, y))
+                        elif specified_goal == 'surprise combat':
+                            # If in combat but no visible enemy, try to look for an unidentified feature to attack - maybe it is a monster that isn't in
+                            #   the agent's memory? Check for a ? glyph in the other cell and somehow record the glyph subject
+                            goal_locations.append((x, y))
+            print('Combat goals: ' + str(goal_locations))
         elif specified_goal == 'down':
             for x in range(self.nle_map.origin_coordinates[0], self.nle_map.origin_coordinates[0] + self.nle_map.grid_width):
                 for y in range(self.nle_map.origin_coordinates[1] - self.nle_map.grid_height + 1, self.nle_map.origin_coordinates[1] + 1):
@@ -139,13 +152,16 @@ class viktor_agent:
     def generate_goal(self):
         return_value = 'explore'
         # Generates an overall priority for the agent, based on current circumstances
-        if self.is_combat_message(self.last_text_message) or self.find_goal_locations(specified_goal='combat'):
+        if self.find_goal_locations(specified_goal='combat'): #self.is_combat_message(self.last_text_message) or 
             return_value = 'combat'
         
-        elif self.find_goal_locations(specified_goal='down'):
+        elif self.is_combat_message(self.last_text_message):
+            return_value = 'surprise combat'
+        
+        elif self.nle_map.features.get('stairs down', []) and self.find_goal_locations(specified_goal='down'):
             return_value = 'down'
 
-        elif (feature.features.get('horizontal closed door', []) or feature.features.get('vertical closed door', [])) and self.find_goal_locations(specified_goal='open door'):
+        elif (self.nle_map.features.get('horizontal closed door', []) or self.nle_map.features.get('vertical closed door', [])) and self.find_goal_locations(specified_goal='open door'):
             # Check for any door features - if so, check to make sure there is at least 1 confirmed door on the map
             # Only the 2nd check is necessary, but it only needs to be done if the first check is true, and the first check is much less expensive
             return_value = 'open door'
@@ -169,13 +185,15 @@ class viktor_agent:
         # Search for a collection of cells that qualify, and somehow choose between them
         goal_locations = self.find_goal_locations()
 
-        if len(goal_locations) > 0: # Need to leave open door procedure after kicking down door, shouldn't see any more door features
+        if len(goal_locations) > 0:
             if self.current_plan:
                 self.current_plan.pop(0) # First action was already done last time
                 if len(self.current_plan) >= 2 and type(self.current_plan[1]) == str and type(self.current_plan[0]) == tuple:
                     self.current_plan.pop(0) # Don't allow isolated coordinates, they need to be in pairs
 
-            if self.current_plan and (len(self.current_plan) >= 2 or type(self.current_plan[0]) == str) and self.current_plan[-1] in goal_locations:
+            if self.current_goal in ['combat', 'surprise combat']:
+                plan = [(self.x, self.y), goal_locations[0]]
+            if self.current_plan and (len(self.current_plan) >= 2 or type(self.current_plan[0]) == str) and self.current_plan[-1] in goal_locations and self.current_goal != 'combat':
                 # If plan from last time still have another move action and has a desirable final destination, continue following it
                 plan = self.current_plan
             else:
@@ -186,9 +204,9 @@ class viktor_agent:
                 if self.last_text_message.startswith('This door is locked') or \
                         self.last_text_message.startswith('WHAMM'):
                     plan.insert(0, 'kick')
-            elif self.current_goal == 'combat' and not plan:
-                goal_locations = self.find_goal_locations(specified_goal='random')
-                plan = self.iterative_deepening(goal_locations)
+            #elif self.current_goal == 'combat' and not plan:
+            #    goal_locations = self.find_goal_locations(specified_goal='random')
+            #    plan = self.iterative_deepening(goal_locations)
             elif self.current_goal == 'down' and (self.x, self.y) in goal_locations:
                 plan = ['down']
 
@@ -212,16 +230,16 @@ class viktor_agent:
             self.current_plan = None
         else:
             command = self.think()
+        if command == 'reset':
+            self.reset_map()
+            command = 'wait'
         try:
             obsv, reward, done, info = self.env.step(command)
         except:
             print(specified_command + ' is not a valid command.\n')
             return
         if command == 'down':
-            self.nle_map = nle_map.nle_map(self)
-            feature.features.clear()
-            self.current_goal = None
-            self.current_plan = None
+            self.reset_map()
         self.surroundings = obsv['text_glyphs'].split("\n") # Description of surroundings
         self.last_text_message: str = obsv['text_message'] # Immediate feedback, like "It's solid stone."
         self.update_stats(obsv['text_blstats'].split('\n')) # Description of stats, statuses, and progress

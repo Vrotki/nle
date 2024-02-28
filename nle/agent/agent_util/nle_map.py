@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 from . import feature
 
 movement_commands = {
@@ -66,6 +66,7 @@ class nle_map():
         self.grid_height: int = 1
         self.agent_coordinates: Tuple[int, int] = ((self.agent.x, self.agent.y))
         self.origin_coordinates = self.agent_coordinates
+        self.features: Dict[str, List[feature.feature]] = {}
         #self.get_cell((self.agent.x, self.agent.y)).glyph = '@' # Automate this process when setting location
     
     def create_cell(self, coordinates: Tuple[int, int]) -> None:
@@ -148,7 +149,7 @@ class nle_map():
                     if type(location_set) == set: # Observations deemed to not be useful part-way through will not be fully converted to location sets
                         for location in location_set:
                             self.create_cell(location)
-                        overlapping_features = feature.find_overlap(interpretation['subject'], location_set)
+                        overlapping_features = feature.find_overlap(self, interpretation['subject'], location_set)
                         current_feature = None
                         if len(overlapping_features) == 1:
                             current_feature, intersection = overlapping_features[0]
@@ -158,7 +159,7 @@ class nle_map():
                         if current_feature and len(current_feature.location_set) == 1:
                             self.get_cell(current_feature.predicted_location).just_observed = True
         if verbose:
-            feature.print_features()
+            feature.print_features(self)
 
         guaranteed_visible_cells = [(1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1)]
         while guaranteed_visible_cells:

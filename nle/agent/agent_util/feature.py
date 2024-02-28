@@ -49,7 +49,8 @@ icons = {
     'stuck': 'X',
     'grid bug': 'x',
     'stairs down': '>',
-    'goblin': 'o'
+    'goblin': 'o',
+    'hobbit': 'h'
 }
 
 passable = { #Assumed any object without an entry is passable - may update and log in runtime if discovered that move command failed due to impassable object
@@ -80,10 +81,11 @@ mobile = {
     'sewer rat': True,
     'grid bug': True,
     'goblin': True,
-    'invisible creature': True
+    'invisible creature': True,
+    'hobbit': True
 }
 
-features = {}
+#features = {}
 
 class feature():
     def __init__(self, nle_map, subject_list: List, location_set: Set):
@@ -92,10 +94,10 @@ class feature():
         self.location_set: Set
         self.predicted_location = None
         str_subject = ' '.join(self.subject_list)
-        if str_subject in features:
-            features[str_subject].append(self)
+        if str_subject in self.nle_map.features:
+            self.nle_map.features[str_subject].append(self)
         else:
-            features[str_subject] = [self]
+            self.nle_map.features[str_subject] = [self]
         self.set_location_set(location_set)
 
     def set_location_set(self, new_location_set: Set):
@@ -115,11 +117,11 @@ class feature():
     def remove(self):
         if self.predicted_location:
             self.nle_map.get_cell(self.predicted_location).incorporate(['empty'], confirmed=False)
-        features[' '.join(self.subject_list)].remove(self)
+        self.nle_map.features[' '.join(self.subject_list)].remove(self)
 
 def update_mobile_features(nle_map) -> None: # Accounts for any mobile feature to move by 1 each turn, expand possible locations
     for mobile_subject in mobile:
-        for feature in features.get(mobile_subject, []):
+        for feature in nle_map.features.get(mobile_subject, []):
             new_locations = set()
             for location in feature.location_set:
                 new_locations.add((location[0] + 1, location[1]))
@@ -135,8 +137,8 @@ def update_mobile_features(nle_map) -> None: # Accounts for any mobile feature t
             feature.location_set = new_locations.union(feature.location_set)
 
         preserved_features = []
-        for feature in features.get(mobile_subject, []):
-            for other_feature in features.get(mobile_subject, []): # If there have been 2 sightings 
+        for feature in nle_map.features.get(mobile_subject, []):
+            for other_feature in nle_map.features.get(mobile_subject, []): # If there have been 2 sightings 
                 if feature != other_feature:
                     union = feature.location_set.union(other_feature.location_set)
                     if len(union) > 0:
@@ -145,22 +147,22 @@ def update_mobile_features(nle_map) -> None: # Accounts for any mobile feature t
             length = len(feature.location_set)
             if length > 0 and length <= 100: # Forget any mobile features that haven't been seen in too long
                 preserved_features.append(feature)
-        features[mobile_subject] = preserved_features
+        nle_map.features[mobile_subject] = preserved_features
 
-def find_overlap(subject_list: List, location_set: Set) -> List:
+def find_overlap(nle_map, subject_list: List, location_set: Set) -> List:
     return_list = []
     subject = ' '.join(subject_list)
-    for feature in features.get(subject, []):
+    for feature in nle_map.features.get(subject, []):
         intersection = location_set.intersection(feature.location_set)
         if bool(intersection):
             return_list.append((feature, intersection))
     return(return_list)
 
-def print_features() -> None:
+def print_features(nle_map) -> None:
     print('Printing amorphous features: ')
-    for subject in features:
+    for subject in nle_map.features:
         first = True
-        for feature in features[subject]:
+        for feature in nle_map.features[subject]:
             if len(feature.location_set) != 1: # Only bother printing if there is some level of unpredictability
                 if first:
                     print(subject)
