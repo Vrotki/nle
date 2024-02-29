@@ -1,1 +1,1 @@
-python -m nle.agent.viktor_main --mode=step_test
+python -m nle_agent.agent.viktor_main --mode=step_test

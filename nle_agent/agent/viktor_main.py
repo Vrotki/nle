@@ -10,9 +10,9 @@ import gym
 import random
 import nle  # noqa: F401, E402
 from nle import nethack  # noqa: E402
-from nle.agent import vtrace  # noqa: E402
-from nle.agent import viktor_agent
-from nle.env import NLE
+from nle_agent.agent import vtrace  # noqa: E402
+from nle_agent.agent import viktor_agent
+from nle_agent.env import NLE
 from nle_language_wrapper import NLELanguageWrapper
 
 # yapf: disable

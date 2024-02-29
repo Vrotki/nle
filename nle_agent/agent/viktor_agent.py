@@ -1,10 +1,10 @@
 import random
 import math
 from typing import Dict, List, Tuple
-from nle.env import NLE
-import nle.agent.agent_util.nle_map as nle_map
-import nle.agent.agent_util.feature as feature
-import nle.agent.agent_util.misc_util as misc_util
+from nle_agent.env import NLE
+import nle_agent.agent.agent_util.nle_map as nle_map
+import nle_agent.agent.agent_util.feature as feature
+import nle_agent.agent.agent_util.misc_util as misc_util
 
 int_stats: List[str] = [
     'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma', 'depth', 'gold', 'ac', 'time', 'monster_level', 'dungeon_number','level_number', 'score'

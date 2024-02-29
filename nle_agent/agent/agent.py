@@ -41,7 +41,7 @@ import gym  # noqa: E402
 
 import nle  # noqa: F401, E402
 from nle import nethack  # noqa: E402
-from nle.agent import vtrace  # noqa: E402
+from nle_agent.agent import vtrace  # noqa: E402
 
 # yapf: disable
 parser = argparse.ArgumentParser(description="PyTorch Scalable Agent")
