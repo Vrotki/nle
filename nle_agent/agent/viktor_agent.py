@@ -233,7 +233,7 @@ class viktor_agent:
             self.current_plan = None
         return(determined_action)
 
-    def act(self, specified_command = None, display = True, render = False):
+    def act(self, specified_command = None, display = True, render = False) -> bool:
         if specified_command:
             command = movement_mappings.get(specified_command, specified_command)
             self.current_goal = None
@@ -254,7 +254,10 @@ class viktor_agent:
         try:
             obsv, reward, done, info = self.env.step(command)
         except:
-            if command != 'render':
+            if self.stats['hp'] <= 0:
+                print('\nRIP')
+                return(False)
+            elif command != 'render':
                 print(str(specified_command) + ' is not a valid command.\n')
             return
         if command == 'down':
@@ -272,12 +275,14 @@ class viktor_agent:
             else:
                 print(self.nle_map)
             print(self.last_text_message.replace('!', '.').replace('. ', '.').replace('. ', '.').split('.')[:-1] + self.journal)
+            print('Current HP: ' + str(self.stats['hp']) + '/' + str(self.stats['max_hp']))
             print('Current coordinates: ' + str((self.x, self.y)))
             if not specified_command:
                 print('Current plan: ' + str(self.current_goal) + ' ' + str(self.current_plan))
             else:
                 print('Current plan: Manually specified')
             print('Decided action: ' + command)
+        return(True)
 
     def interpret(self, text_glyph: str, verbose: bool = False) -> Dict:
         original_glyph = text_glyph
@@ -356,7 +361,7 @@ class viktor_agent:
             for combat_start_message in ['You hit ', 'You miss ', 'You cannot escape from ', 'You get zapped', 'You are hit by ']:
                 if current_message.startswith(combat_start_message):
                     return(True)
-            for combat_end_message in [' hits', ' misses', ' bites', ' misses you']:
+            for combat_end_message in [' hits', ' misses', ' bites', ' misses you', ' points at you, then curses']:
                 if current_message.endswith(combat_end_message):
                     return(True)
         return(False)

@@ -59,11 +59,12 @@ def test(flags):
         continue_run = new_command != 'quit'
         if continue_run:
             for i in range(repeats):
-                if new_command not in ['', 'quit']:
-                    current_agent.act(specified_command=new_command, display=True, render=render)
-                else:
-                    current_agent.act(display=True, render=render)
-                if delay:
+                if continue_run:
+                    if new_command not in ['', 'quit']:
+                        continue_run = current_agent.act(specified_command=new_command, display=True, render=render)
+                    else:
+                        continue_run = current_agent.act(display=True, render=render)
+                if delay and continue_run:
                     time.sleep(delay)
     return
 
