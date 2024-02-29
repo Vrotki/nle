@@ -1,0 +1,1 @@
+python -m nle_agent.agent.viktor_main --mode=render_test

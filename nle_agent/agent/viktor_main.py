@@ -19,7 +19,7 @@ from nle_language_wrapper import NLELanguageWrapper
 parser = argparse.ArgumentParser(description="Viktor Agent")
 
 parser.add_argument("--mode", default="train",
-                    choices=["train", "test", "fast_test", "help", "step_test"],
+                    choices=["train", "test", "fast_test", "help", "step_test", "render_test"],
                     help="Training or test mode.")
 
 def train(flags):
@@ -36,33 +36,35 @@ def test(flags):
     current_agent = viktor_agent.viktor_agent(env)
     continue_run = True
 
+    render = False
     if flags.mode == "step_test":
         repeats = 1
         delay = 0
+    elif flags.mode == "render_test":
+        repeats = 5000
+        delay = 0.05
+        render = True
     elif flags.mode == "fast_test":
-        repeats = 10
-        delay = 0
+        repeats = 5000
+        delay = 0.05
+        render = False
     else:
         repeats = 100
         delay = 0.05
 
     new_command = ''
-    current_agent.act('wait')
+    current_agent.act('wait', render=render)
     while(continue_run):
-        #env.render()
-        #print(current_agent.last_text_message)
-        #print(current_agent.nle_map)
         new_command = input('Enter "quit" to terminate run: ')
         continue_run = new_command != 'quit'
         if continue_run:
             for i in range(repeats):
                 if new_command not in ['', 'quit']:
-                    current_agent.act(specified_command=new_command, display=(i == repeats - 1))
+                    current_agent.act(specified_command=new_command, display=True, render=render)
                 else:
-                    current_agent.act(display=(i == repeats - 1))
+                    current_agent.act(display=True, render=render)
                 if delay:
                     time.sleep(delay)
-                    env.render()
     return
 
 def main(flags):

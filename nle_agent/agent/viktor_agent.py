@@ -80,19 +80,23 @@ class viktor_agent:
                     neighbor_locations.append((neighbor.x, neighbor.y))
         return(neighbor_locations)
 
-    def iterative_deepening(self, goal_locations: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
+    def iterative_deepening(self, goal_locations: List[Tuple[int, int]], max: int = None, initial_location: Tuple[int, int] = None) -> List[Tuple[int, int]]:
         solution: List[Tuple[int, int]] = None
         depth_limit = 0
-        while (not solution) and depth_limit <= (self.nle_map.grid_height * self.nle_map.grid_width / 2): # Eventually figure out that algorithm is stuck
-            solution = self.bounded_DFS(goal_locations, depth_limit) # Could alternatively return whether increasing depth limit would lead to more paths
+        if not max:
+            max = self.nle_map.grid_height * self.nle_map.grid_width / 4
+        if not initial_location:
+            initial_location = (self.x, self.y)
+        while (not solution) and depth_limit <= max: # Eventually figure out that algorithm is stuck
+            solution = self.bounded_DFS(initial_location, goal_locations, depth_limit) # Could alternatively return whether increasing depth limit would lead to more paths
             depth_limit += 1
         if not solution:
             solution = []
         return(solution)
 
-    def bounded_DFS(self, goal_locations: List[Tuple[int, int]], depth_limit: int) -> List[Tuple[int, int]]:
-        frontier: List[List[Tuple[int, int]]] = [[(self.x, self.y)]]
-        visited: Dict[str, bool] = {str((self.x, self.y)): True}
+    def bounded_DFS(self, initial_location: Tuple[int, int], goal_locations: List[Tuple[int, int]], depth_limit: int) -> List[Tuple[int, int]]:
+        frontier: List[List[Tuple[int, int]]] = [[initial_location]]
+        visited: Dict[str, bool] = {str(initial_location): True}
         while frontier:
             current_plan = frontier.pop()
             if len(current_plan) == depth_limit:
@@ -129,7 +133,7 @@ class viktor_agent:
                 for y in range(self.nle_map.origin_coordinates[1] - self.nle_map.grid_height + 1, self.nle_map.origin_coordinates[1] + 1):
                     if abs(x - self.x) > 1 or abs(y - self.y) > 1:
                         current_cell = self.nle_map.get_cell((x, y))
-                        if current_cell.feature and feature.mobile.get(current_cell.feature, False) and not current_cell.feature.startswith('tame '):
+                        if current_cell.feature and current_cell.just_observed and feature.mobile.get(current_cell.feature, False) and not current_cell.feature.startswith('tame ') and self.nle_map.reachable(current_cell):
                             goal_locations.append((x, y))
         elif specified_goal in ['combat', 'surprise combat']: # If threat detected adjacent, find its current position and move into it
             for x in range(self.nle_map.origin_coordinates[0], self.nle_map.origin_coordinates[0] + self.nle_map.grid_width):
@@ -215,9 +219,6 @@ class viktor_agent:
                 if self.last_text_message.startswith('This door is locked') or \
                         self.last_text_message.startswith('WHAMM'):
                     plan.insert(0, 'kick')
-            #elif self.current_goal == 'combat' and not plan:
-            #    goal_locations = self.find_goal_locations(specified_goal='random')
-            #    plan = self.iterative_deepening(goal_locations)
             elif self.current_goal == 'down' and (self.x, self.y) in goal_locations:
                 plan = ['down']
 
@@ -232,7 +233,7 @@ class viktor_agent:
             self.current_plan = None
         return(determined_action)
 
-    def act(self, specified_command = None, display = True):
+    def act(self, specified_command = None, display = True, render = False):
         if specified_command:
             command = movement_mappings.get(specified_command, specified_command)
             self.current_goal = None
@@ -246,12 +247,15 @@ class viktor_agent:
             print(self.env.action_str_enum_map)
         elif command == 'render':
             self.nle_map.update_surroundings(self.surroundings, verbose=True)
-            self.env.render()
+            if self.render: # Print reverse of what is normally displayed when asked for extra information
+                print(self.nle_map)
+            else:
+                self.env.render()
         try:
             obsv, reward, done, info = self.env.step(command)
         except:
             if command != 'render':
-                print(specified_command + ' is not a valid command.\n')
+                print(str(specified_command) + ' is not a valid command.\n')
             return
         if command == 'down':
             self.reset_map()
@@ -263,7 +267,10 @@ class viktor_agent:
         self.nle_map.update_position(command)
         self.nle_map.update_surroundings(self.surroundings, verbose=False)#display)
         if display:
-            print(self.nle_map)
+            if render:
+                self.env.render()
+            else:
+                print(self.nle_map)
             print(self.last_text_message.replace('!', '.').replace('. ', '.').replace('. ', '.').split('.')[:-1] + self.journal)
             print('Current coordinates: ' + str((self.x, self.y)))
             if not specified_command:
@@ -353,4 +360,3 @@ class viktor_agent:
                 if current_message.endswith(combat_end_message):
                     return(True)
         return(False)
-# Account for messages like "The kobold zombie hits! The kitten drops a gold piece." - maybe replace ! and ? with . and split by .

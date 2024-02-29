@@ -177,13 +177,8 @@ class nle_map():
 
         self.get_cell(self.agent_coordinates).incorporate(['agent'], confirmed=False)
 
-    def reachable(self, current_cell: cell) -> bool:
-        for direction in movement_commands:
-            movement_change = movement_commands[direction]
-            current_neighbor = self.get_cell((current_cell.x + movement_change[0], current_cell.y + movement_change[1]))
-            if current_neighbor and current_neighbor.confirmed_feature and feature.passable.get(current_neighbor.confirmed_feature, True):
-                return(True)
-        return(False)
+    def reachable(self, current_cell: cell) -> bool: # If agent could reach a cell in 10 steps through discovered locations, it is considered reachable
+        return(bool(self.agent.iterative_deepening([(self.agent.x, self.agent.y)], max=10, initial_location=(current_cell.x, current_cell.y))))
 
     def __str__(self) -> str:
         return_str = ""

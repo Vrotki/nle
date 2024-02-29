@@ -85,7 +85,10 @@ mobile = {
     'grid bug': True,
     'goblin': True,
     'invisible creature': True,
-    'hobbit': True
+    'hobbit': True,
+    'gnome': True,
+    'gnome king': True,
+    'gnome lord': True
 }
 
 class feature():
