@@ -36,6 +36,7 @@ class viktor_agent:
         self.character_class: str = None
         self.last_text_message: str = None
         self.current_goal: str = None
+        self.journal: str = []
         self.current_plan = None
 
     def reset_map(self):
@@ -121,9 +122,16 @@ class viktor_agent:
             for x in range(self.nle_map.origin_coordinates[0], self.nle_map.origin_coordinates[0] + self.nle_map.grid_width):
                 for y in range(self.nle_map.origin_coordinates[1] - self.nle_map.grid_height + 1, self.nle_map.origin_coordinates[1] + 1):
                     current_cell = self.nle_map.get_cell((x, y))
-                    if current_cell.confirmed_feature and current_cell.confirmed_feature in ['horizontal closed door', 'vertical closed door']:
+                    if current_cell.confirmed_feature and current_cell.confirmed_feature in ['horizontal closed door', 'vertical closed door'] and self.nle_map.reachable(current_cell):
                         goal_locations.append((x, y))
-        elif specified_goal in ['combat', 'surprise combat']:
+        elif specified_goal == 'approach monster': # If monster seen from far away, move towards it
+            for x in range(self.nle_map.origin_coordinates[0], self.nle_map.origin_coordinates[0] + self.nle_map.grid_width):
+                for y in range(self.nle_map.origin_coordinates[1] - self.nle_map.grid_height + 1, self.nle_map.origin_coordinates[1] + 1):
+                    if abs(x - self.x) > 1 or abs(y - self.y) > 1:
+                        current_cell = self.nle_map.get_cell((x, y))
+                        if current_cell.feature and feature.mobile.get(current_cell.feature, False) and not current_cell.feature.startswith('tame '):
+                            goal_locations.append((x, y))
+        elif specified_goal in ['combat', 'surprise combat']: # If threat detected adjacent, find its current position and move into it
             for x in range(self.nle_map.origin_coordinates[0], self.nle_map.origin_coordinates[0] + self.nle_map.grid_width):
                 for y in range(self.nle_map.origin_coordinates[1] - self.nle_map.grid_height + 1, self.nle_map.origin_coordinates[1] + 1):
                     if abs(x - self.x) <= 1 and abs(y - self.y) <= 1:
@@ -133,16 +141,15 @@ class viktor_agent:
                                 goal_locations.append((x, y))
                         elif specified_goal == 'surprise combat':
                             if (x, y) != (self.x, self.y) and current_cell.feature and feature.icons.get(current_cell.feature, '?') == '?':
-                                print('Surprised, interpreting ' + current_cell.feature + ' with glyph ? as enemy')
+                                self.journal.append('Surprised, interpreting ' + current_cell.feature + ' with glyph ? as enemy')
                                 goal_locations.append((x, y))
                             # If in combat but no visible enemy, try to look for an unidentified feature to attack - maybe it is a monster that isn't in
                             #   the agent's memory? Check for a ? glyph in the other cell and somehow record the glyph subject
-            print('Combat goals: ' + str(goal_locations))
         elif specified_goal == 'down':
             for x in range(self.nle_map.origin_coordinates[0], self.nle_map.origin_coordinates[0] + self.nle_map.grid_width):
                 for y in range(self.nle_map.origin_coordinates[1] - self.nle_map.grid_height + 1, self.nle_map.origin_coordinates[1] + 1):
                     current_cell = self.nle_map.get_cell((x, y))
-                    if current_cell.confirmed_feature and current_cell.confirmed_feature == 'stairs down':
+                    if current_cell.confirmed_feature and current_cell.confirmed_feature == 'stairs down' and self.nle_map.reachable(current_cell):
                         goal_locations.append((x, y))
         elif specified_goal == 'random':
             for x in range(self.nle_map.origin_coordinates[0], self.nle_map.origin_coordinates[0] + self.nle_map.grid_width):
@@ -157,6 +164,9 @@ class viktor_agent:
         if self.find_goal_locations(specified_goal='combat'): #self.is_combat_message(self.last_text_message) or 
             return_value = 'combat'
         
+        elif self.find_goal_locations(specified_goal='approach monster'):
+            return_value = 'approach monster'
+
         elif self.is_combat_message(self.last_text_message):
             return_value = 'surprise combat'
         
@@ -177,6 +187,7 @@ class viktor_agent:
         return(return_value)
 
     def think(self): # Note - use more commmand to escape prompts like eat
+        self.journal = []
         determined_action = 'wait'
         # Think about current priorities, like explore, find a specific feature seen earlier, fight, eat, loot
         self.current_goal = self.generate_goal()
@@ -193,12 +204,12 @@ class viktor_agent:
 
             if self.current_goal in ['combat', 'surprise combat']:
                 plan = [(self.x, self.y), goal_locations[0]]
-            if self.current_plan and (len(self.current_plan) >= 2 or type(self.current_plan[0]) == str) and self.current_plan[-1] in goal_locations and self.current_goal != 'combat':
+            elif self.current_plan and (len(self.current_plan) >= 2 or type(self.current_plan[0]) == str) and self.current_plan[-1] in goal_locations:
                 # If plan from last time still have another move action and has a desirable final destination, continue following it
                 plan = self.current_plan
             else:
                 plan = self.iterative_deepening(goal_locations)
-            
+
             # Tune plan beyond just movement to goal location
             if self.current_goal == 'open door': # Insert any relevant non-movement actions after iterative DFS to reach goal location
                 if self.last_text_message.startswith('This door is locked') or \
@@ -231,6 +242,8 @@ class viktor_agent:
         if command == 'reset':
             self.reset_map()
             command = 'wait'
+        elif command == 'instructions':
+            print(self.env.action_str_enum_map)
         elif command == 'render':
             self.nle_map.update_surroundings(self.surroundings, verbose=True)
             self.env.render()
@@ -250,18 +263,14 @@ class viktor_agent:
         self.nle_map.update_position(command)
         self.nle_map.update_surroundings(self.surroundings, verbose=False)#display)
         if display:
-            #self.env.render()
             print(self.nle_map)
-            print(self.last_text_message.replace('!', '.').replace('. ', '.').replace('. ', '.').split('.')[:-1])
+            print(self.last_text_message.replace('!', '.').replace('. ', '.').replace('. ', '.').split('.')[:-1] + self.journal)
             print('Current coordinates: ' + str((self.x, self.y)))
             if not specified_command:
                 print('Current plan: ' + str(self.current_goal) + ' ' + str(self.current_plan))
             else:
                 print('Current plan: Manually specified')
             print('Decided action: ' + command)
-
-        # After receiving message "You try to move the boulder, but in vain.", need to log that boulder as a confirmed "stuck boulder" feature that a
-        #   boulder observation won't overwrite - treat it as impassable
 
     def interpret(self, text_glyph: str, verbose: bool = False) -> Dict:
         original_glyph = text_glyph
@@ -337,10 +346,10 @@ class viktor_agent:
     def is_combat_message(self, text_message: str):
         split_message = text_message.replace('!', '.').replace('. ', '.').replace('. ', '.').split('.')
         for current_message in split_message:
-            for combat_start_message in ['You kill ', 'You hit ', 'You miss ', 'You destroy ', 'You cannot escape from ', 'You get zapped']:
+            for combat_start_message in ['You hit ', 'You miss ', 'You cannot escape from ', 'You get zapped', 'You are hit by ']:
                 if current_message.startswith(combat_start_message):
                     return(True)
-            for combat_end_message in [' is killed', ' hits', ' misses', ' bites', ' misses you']:
+            for combat_end_message in [' hits', ' misses', ' bites', ' misses you']:
                 if current_message.endswith(combat_end_message):
                     return(True)
         return(False)

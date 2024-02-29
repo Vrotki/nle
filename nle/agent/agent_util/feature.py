@@ -25,32 +25,34 @@ icons = {
     'dark area': ' ',
     'agent': '@',
     'tame little dog': 'd',
-    #'jackal': 'd',
+    'jackal': 'd',
     'gold piece': '$',
     'tame kitten': 'f',
     'tame pony': 'u',
-    #'kobold': 'k',
+    'kobold': 'k',
     'fountain': '{',
     'grave': '|',
     'bars': '#',
     'bronze ring': '=',
     'lichen': 'F',
     'stairs up': '<',
-    #'newt': ':',
+    'newt': ':',
+    'gecko': ':',
     'invisible creature': 'I',
     'leather armor': '[',
     'hole': '^',
-    #'kobold zombie': 'Z',
-    #'sewer rat': 'r',
+    'kobold zombie': 'Z',
+    'sewer rat': 'r',
     'boulder': "'",
     'anti magic trap': '^',
-    #'fox': 'd',
+    'fox': 'd',
     'chest': ')',
     'stuck': 'X',
-    #'grid bug': 'x',
+    'grid bug': 'x',
     'stairs down': '>',
-    #'goblin': 'o',
-    #'hobbit': 'h'
+    'goblin': 'o',
+    'hobbit': 'h',
+    'rock': '*'
 }
 
 passable = { #Assumed any object without an entry is passable - may update and log in runtime if discovered that move command failed due to impassable object
@@ -71,6 +73,7 @@ allows_diagonals = {
 mobile = {
     'fox': True,
     'newt': True,
+    'gecko': True,
     'lichen': True,
     'tame little dog': True,
     'tame kitten': True,
@@ -84,8 +87,6 @@ mobile = {
     'invisible creature': True,
     'hobbit': True
 }
-
-#features = {}
 
 class feature():
     def __init__(self, nle_map, subject_list: List, location_set: Set):
