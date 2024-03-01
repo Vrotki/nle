@@ -58,14 +58,18 @@ def test(flags):
         new_command = input('Enter "quit" to terminate run: ')
         continue_run = new_command != 'quit'
         if continue_run:
-            for i in range(repeats):
-                if continue_run:
-                    if new_command not in ['', 'quit']:
-                        continue_run = current_agent.act(specified_command=new_command, display=True, render=render)
-                    else:
-                        continue_run = current_agent.act(display=True, render=render)
-                if delay and continue_run:
-                    time.sleep(delay)
+            try:
+                for i in range(repeats):
+                    if continue_run:
+                        if new_command not in ['', 'quit']:
+                            continue_run = current_agent.act(specified_command=new_command, display=True, render=render, clear=render)
+                        else:
+                            continue_run = current_agent.act(display=True, render=render, clear=render)
+                    if delay and continue_run:
+                        time.sleep(delay)
+            except KeyboardInterrupt:
+                current_agent.act(specified_command='render', display=True, render=False, clear=False)
+                print("Warning: Keyboard interrupt may have interrupted an important command - further integrity not guaranteed")
     return
 
 def main(flags):

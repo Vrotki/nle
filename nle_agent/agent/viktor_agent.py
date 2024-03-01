@@ -1,5 +1,6 @@
 import random
 import math
+import os
 from typing import Dict, List, Tuple
 from nle_agent.env import NLE
 import nle_agent.agent.agent_util.nle_map as nle_map
@@ -38,6 +39,7 @@ class viktor_agent:
         self.current_goal: str = None
         self.journal: str = []
         self.current_plan = None
+        self.searches_required: int = 1
 
     def reset_map(self):
         self.x = 0
@@ -84,7 +86,7 @@ class viktor_agent:
         solution: List[Tuple[int, int]] = None
         depth_limit = 0
         if not max:
-            max = self.nle_map.grid_height * self.nle_map.grid_width / 4
+            max = self.nle_map.grid_height * self.nle_map.grid_width / 8
         if not initial_location:
             initial_location = (self.x, self.y)
         while (not solution) and depth_limit <= max: # Eventually figure out that algorithm is stuck
@@ -160,12 +162,24 @@ class viktor_agent:
                 for y in range(self.nle_map.origin_coordinates[1] - self.nle_map.grid_height + 1, self.nle_map.origin_coordinates[1] + 1):
                     if x != self.x and y != self.y:
                         goal_locations.append((x, y))
+        elif specified_goal == 'dead end search':
+            for x in range(self.nle_map.origin_coordinates[0], self.nle_map.origin_coordinates[0] + self.nle_map.grid_width):
+                for y in range(self.nle_map.origin_coordinates[1] - self.nle_map.grid_height + 1, self.nle_map.origin_coordinates[1] + 1):
+                    current_cell = self.nle_map.get_cell((x, y))
+                    if current_cell and current_cell.confirmed_feature and current_cell.num_searches < self.searches_required and len(self.get_movement_neighbors((x, y))) < 8: # If next to at least 1 wall and not searched yet
+                        goal_locations.append((x, y))
         return(goal_locations)
 
     def generate_goal(self):
         return_value = 'explore'
+
+        if self.current_goal == 'dead end search' and not self.last_text_message:
+            if not self.current_plan:
+                self.searches_required += 1
+            return('dead end search')
+
         # Generates an overall priority for the agent, based on current circumstances
-        if self.find_goal_locations(specified_goal='combat'): #self.is_combat_message(self.last_text_message) or 
+        if self.find_goal_locations(specified_goal='combat'):
             return_value = 'combat'
         
         elif self.find_goal_locations(specified_goal='approach monster'):
@@ -180,14 +194,21 @@ class viktor_agent:
         elif (self.nle_map.features.get('horizontal closed door', []) or self.nle_map.features.get('vertical closed door', [])) and self.find_goal_locations(specified_goal='open door'):
             return_value = 'open door'
 
-        if return_value == self.current_goal and not self.current_plan: # If procedure resulted in empty plan, try something else
-            if return_value != 'explore':
-                return_value = 'explore'
+        elif self.find_goal_locations(specified_goal='explore'):
+            return_value = 'explore'
+        else:
+            return_value = 'dead end search'
+
+        if return_value == self.current_goal and not self.current_plan: # If decided same thing as last time but that had an empty plan, try something else
+            if self.current_goal == 'explore':
+                return_value = 'dead end search'
             else:
-                return_value = 'random'
+                return_value = 'explore'
 
         if return_value != self.current_goal:
             self.current_plan = None
+        if self.searches_required != 1 and self.current_plan == 'explore':
+            self.searches_required = 1
         return(return_value)
 
     def think(self): # Note - use more commmand to escape prompts like eat
@@ -221,6 +242,9 @@ class viktor_agent:
                     plan.insert(0, 'kick')
             elif self.current_goal == 'down' and (self.x, self.y) in goal_locations:
                 plan = ['down']
+            elif self.current_goal == 'dead end search' and (self.x, self.y) in goal_locations:
+                plan = ['search']
+                self.nle_map.get_cell((self.x, self.y)).num_searches += 1
 
             if (plan and type(plan[0]) == str) or len(plan) > 1: # Plan requires at least 1 manual command or 2+ coordinates
                 if type(plan[0]) == str:
@@ -233,7 +257,7 @@ class viktor_agent:
             self.current_plan = None
         return(determined_action)
 
-    def act(self, specified_command = None, display = True, render = False) -> bool:
+    def act(self, specified_command = None, display = True, render = False, clear = False) -> bool:
         if specified_command:
             command = movement_mappings.get(specified_command, specified_command)
             self.current_goal = None
@@ -247,7 +271,7 @@ class viktor_agent:
             print(self.env.action_str_enum_map)
         elif command == 'render':
             self.nle_map.update_surroundings(self.surroundings, verbose=True)
-            if self.render: # Print reverse of what is normally displayed when asked for extra information
+            if render: # Print reverse of what is normally displayed when asked for extra information
                 print(self.nle_map)
             else:
                 self.env.render()
@@ -255,6 +279,7 @@ class viktor_agent:
             obsv, reward, done, info = self.env.step(command)
         except:
             if self.stats['hp'] <= 0:
+                self.env.render()
                 print('\nRIP')
                 return(False)
             elif command != 'render':
@@ -270,6 +295,8 @@ class viktor_agent:
         self.nle_map.update_position(command)
         self.nle_map.update_surroundings(self.surroundings, verbose=False)#display)
         if display:
+            if clear:
+                os.system('clear')
             if render:
                 self.env.render()
             else:

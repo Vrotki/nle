@@ -34,6 +34,7 @@ class cell():
         self.passable: bool = True
         self.just_observed: bool = False
         self.locked: bool = False
+        self.num_searches: int = 0
 
     def __str__(self) -> str:
         if not self.confirmed_glyph:
