@@ -91,7 +91,8 @@ mobile = {
     'gnome lord': True,
     'gnomish wizard': True,
     'hill orc': True,
-    'dwarf': True
+    'dwarf': True,
+    'gas spore': True
 }
 
 class feature():

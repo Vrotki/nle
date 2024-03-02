@@ -37,9 +37,10 @@ class viktor_agent:
         self.character_class: str = None
         self.last_text_message: str = None
         self.current_goal: str = None
-        self.journal: str = []
+        self.journal: List[str] = []
         self.current_plan = None
         self.searches_required: int = 1
+        self.dungeon_floor: int = 0
 
     def reset_map(self):
         self.x = 0
@@ -173,9 +174,13 @@ class viktor_agent:
     def generate_goal(self):
         return_value = 'explore'
 
-        if self.current_goal == 'dead end search' and not self.last_text_message:
+        if self.current_goal == 'dead end search' and not self.is_discovery(self.last_text_message):
             if not self.current_plan:
                 self.searches_required += 1
+            for neighbor in self.get_movement_neighbors((self.x, self.y)):
+                # Too computationally expensive to do full explore check each time, but check for explorable cells nearby to break out of dead end search mode
+                if self.can_explore(neighbor):
+                    return('explore')
             return('dead end search')
 
         # Generates an overall priority for the agent, based on current circumstances
@@ -287,6 +292,7 @@ class viktor_agent:
             return
         if command == 'down':
             self.reset_map()
+            self.dungeon_floor += 1
         self.surroundings = obsv['text_glyphs'].split("\n") # Description of surroundings
         self.last_text_message: str = obsv['text_message'] # Immediate feedback, like "It's solid stone."
         self.update_stats(obsv['text_blstats'].split('\n')) # Description of stats, statuses, and progress
@@ -295,20 +301,24 @@ class viktor_agent:
         self.nle_map.update_position(command)
         self.nle_map.update_surroundings(self.surroundings, verbose=False)#display)
         if display:
+            to_print = ''
             if clear:
                 os.system('clear')
             if render:
                 self.env.render()
             else:
-                print(self.nle_map)
-            print(self.last_text_message.replace('!', '.').replace('. ', '.').replace('. ', '.').split('.')[:-1] + self.journal)
-            print('Current HP: ' + str(self.stats['hp']) + '/' + str(self.stats['max_hp']))
-            print('Current coordinates: ' + str((self.x, self.y)))
+                to_print += str(self.nle_map) + '\n'
+            to_print += str(self.last_text_message.replace('!', '.').replace('. ', '.').replace('. ', '.').split('.')[:-1] + self.journal) + '\n'
+            to_print += 'Dungeon floor: ' + str(self.dungeon_floor) + ', Score: ' + str(self.stats['score']) + '\n'
+            to_print += 'Current HP: ' + str(self.stats['hp']) + '/' + str(self.stats['max_hp']) + '\n'
+            to_print += 'Current hunger: ' + self.stats['hunger'] + '\n'
+            to_print += 'Current coordinates: ' + str((self.x, self.y)) + '\n'
             if not specified_command:
-                print('Current plan: ' + str(self.current_goal) + ' ' + str(self.current_plan))
+                to_print += 'Current plan: ' + str(self.current_goal) + ' ' + str(self.current_plan) + '\n'
             else:
-                print('Current plan: Manually specified')
-            print('Decided action: ' + command)
+                to_print += 'Current plan: Manually specified' + '\n'
+            to_print += 'Decided action: ' + command
+            print(to_print)
         return(True)
 
     def interpret(self, text_glyph: str, verbose: bool = False) -> Dict:
@@ -392,3 +402,15 @@ class viktor_agent:
                 if current_message.endswith(combat_end_message):
                     return(True)
         return(False)
+
+    def is_discovery(self, text_message: str):
+        split_message = text_message.replace('!', '.').replace('. ', '.').replace('. ', '.').split('.')
+        for current_message in split_message:
+            for combat_start_message in ['You find ']:
+                if current_message.startswith(combat_start_message):
+                    return(True)
+        return(False)
+
+# Somehow detect being stuck:
+#   'You are caught in a bear trap' and fainting from starving lead to agent thinking the tiles next to it are stuck, when it is just temporarily immobilized
+#   Should realize this and not label adjacent cells as stuck when agent is stuck
