@@ -174,15 +174,6 @@ class viktor_agent:
     def generate_goal(self):
         return_value = 'explore'
 
-        if self.current_goal == 'dead end search' and not self.is_discovery(self.last_text_message):
-            if not self.current_plan:
-                self.searches_required += 1
-            for neighbor in self.get_movement_neighbors((self.x, self.y)):
-                # Too computationally expensive to do full explore check each time, but check for explorable cells nearby to break out of dead end search mode
-                if self.can_explore(neighbor):
-                    return('explore')
-            return('dead end search')
-
         # Generates an overall priority for the agent, based on current circumstances
         if self.find_goal_locations(specified_goal='combat'):
             return_value = 'combat'
@@ -198,11 +189,20 @@ class viktor_agent:
 
         elif (self.nle_map.features.get('horizontal closed door', []) or self.nle_map.features.get('vertical closed door', [])) and self.find_goal_locations(specified_goal='open door'):
             return_value = 'open door'
-
-        elif self.find_goal_locations(specified_goal='explore'):
-            return_value = 'explore'
         else:
-            return_value = 'dead end search'
+            if self.current_goal == 'dead end search' and not self.is_discovery(self.last_text_message):
+                if not self.current_plan:
+                    self.searches_required += 1
+                for neighbor in self.get_movement_neighbors((self.x, self.y)):
+                    # Too computationally expensive to do full explore check each time, but check for explorable cells nearby to break out of dead end search mode
+                    if self.can_explore(neighbor):
+                        return('explore')
+                return('dead end search')
+
+            if self.find_goal_locations(specified_goal='explore'):
+                return_value = 'explore'
+            else:
+                return_value = 'dead end search'
 
         if return_value == self.current_goal and not self.current_plan: # If decided same thing as last time but that had an empty plan, try something else
             if self.current_goal == 'explore':
@@ -255,7 +255,7 @@ class viktor_agent:
                 if type(plan[0]) == str:
                     first_action = plan[0]
                 else:
-                    first_action = nle_map.reverse_movement_commands[str((plan[1][0] - plan[0][0], plan[1][1] - plan[0][1]))]
+                    first_action = nle_map.reverse_movement_commands.get(str((plan[1][0] - plan[0][0], plan[1][1] - plan[0][1])), 'wait')
                 self.current_plan = plan
                 determined_action = first_action
         else:
@@ -384,6 +384,8 @@ class viktor_agent:
                 glyph_subject = ['stone', 'wall']
             else:
                 glyph_subject = ['current'] # Don't use far dark observations directly, but they help determine which guaranteed visible cells to modify
+        if min_glyph_distance > 10: # Very far observations are too unreliable to use in most situations
+            glyph_subject = ['current']
         if verbose:
             print('Encoding ' + str(glyph_subject) + ' about ' + str(min_glyph_distance) + ' away at the coordinates ' + str(glyph_location) +'\n')
         return({
@@ -414,3 +416,12 @@ class viktor_agent:
 # Somehow detect being stuck:
 #   'You are caught in a bear trap' and fainting from starving lead to agent thinking the tiles next to it are stuck, when it is just temporarily immobilized
 #   Should realize this and not label adjacent cells as stuck when agent is stuck
+# ['You fall into a pit'] ['You crawl to the edge of the pit']
+
+#['"Hello, Agent', "Welcome to Tjibarusa's delicatessen"]
+# ^ Shows that shop is being entered - agent should only go into shops if all other paths are dead ends - shops are certain death
+
+# Add diagonal version of stuck
+# Every time a cell seems to be stuck, if the attempted move was diagonal, log the cell is "diagonal stuck"
+#   This will then tell the agent to attempt to walk through it non-diagonally, which could result in finding that it is actually stuck, or just a doorway
+#   This will also mitigate bear trap/pit issues
